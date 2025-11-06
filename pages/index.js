@@ -1,13 +1,20 @@
-import Head from 'next/head';
-import { useRouter } from 'next/router';
-import { IoChatbubbleEllipsesSharp } from "react-icons/io5";
 import { useEffect, useState } from 'react';
-import { IoMdPlay } from "react-icons/io";
+import { createClient } from '@supabase/supabase-js';
 
+const supabaseUrl = 'https://itxndrvoolbvzdseuljx.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eG5kcnZvb2xidnpkc2V1bGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzUyNjYsImV4cCI6MjA3MzcxMTI2Nn0.4x264DWr3QVjgPQYqf73QdAypfhKXvuVxw3LW9QYyGM';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function Home() {
-  const router = useRouter();
   const [modal, setModal] = useState({ show: false, type: '', message: '', onConfirm: null });
+  const [authModal, setAuthModal] = useState({ show: false, mode: 'login' });
+  const [mounted, setMounted] = useState(false);
+  const [carouselData, setCarouselData] = useState([]);
+  const [animeCards, setAnimeCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
   const showModal = (type, message, onConfirm = null) => {
     setModal({ show: true, type, message, onConfirm });
@@ -17,772 +24,724 @@ export default function Home() {
     setModal({ show: false, type: '', message: '', onConfirm: null });
   };
 
+  const showAuthModal = (mode = 'login') => {
+    setAuthModal({ show: true, mode });
+  };
+
+  const hideAuthModal = () => {
+    setAuthModal({ show: false, mode: 'login' });
+  };
+
   useEffect(() => {
-    window.showModal = showModal;
+    setMounted(true);
+    loadData();
+    checkCurrentUser();
   }, []);
+
+  useEffect(() => {
+    if (carouselData.length > 0) {
+      const interval = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % carouselData.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [carouselData]);
+
+  const checkCurrentUser = () => {
+    const user = localStorage.getItem('anime_user');
+    if (user) {
+      setCurrentUser(JSON.parse(user));
+    }
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const { data: carouselItems } = await supabase
+        .from('anime_carousel')
+        .select('*, anime_cards(*)')
+        .order('position', { ascending: true });
+      
+      const { data: cards } = await supabase
+        .from('anime_cards')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      setCarouselData(carouselItems || []);
+      setAnimeCards(cards || []);
+    } catch (error) {
+      console.error('Ma\'lumotlarni yuklashda xato:', error);
+    }
+    setLoading(false);
+  };
+
+  const handleLogin = async (username, password) => {
+    setAuthLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password)
+        .single();
+
+      if (error || !data) {
+        showModal('error', 'Username yoki parol xato!');
+        setAuthLoading(false);
+        return;
+      }
+
+      localStorage.setItem('anime_user', JSON.stringify(data));
+      setCurrentUser(data);
+      hideAuthModal();
+      showModal('success', 'Xush kelibsiz, ' + data.username + '!');
+    } catch (error) {
+      showModal('error', 'Kirish jarayonida xato yuz berdi');
+    }
+    setAuthLoading(false);
+  };
+
+  const handleRegister = async (username, password) => {
+    if (!username || !password) {
+      showModal('error', 'Barcha maydonlarni to\'ldiring!');
+      return;
+    }
+
+    if (username.length < 3) {
+      showModal('error', 'Username kamida 3 ta belgidan iborat bo\'lishi kerak!');
+      return;
+    }
+
+    if (password.length < 6) {
+      showModal('error', 'Parol kamida 6 ta belgidan iborat bo\'lishi kerak!');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('username')
+        .eq('username', username)
+        .single();
+
+      if (existingUser) {
+        showModal('error', 'Bu username allaqachon band!');
+        setAuthLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{ username, password }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      localStorage.setItem('anime_user', JSON.stringify(data));
+      setCurrentUser(data);
+      hideAuthModal();
+      showModal('success', 'Ro\'yxatdan o\'tdingiz! Xush kelibsiz!');
+    } catch (error) {
+      showModal('error', 'Ro\'yxatdan o\'tishda xato yuz berdi');
+    }
+    setAuthLoading(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('anime_user');
+    setCurrentUser(null);
+    showModal('success', 'Tizimdan chiqdingiz!');
+  };
+
+  const goToSlide = (index) => {
+    setCurrentSlide(index);
+  };
+
+  const goToAdmin = () => {
+    window.location.href = '/admin';
+  };
+
+  if (!mounted) {
+    return null;
+  }
+
+  const isAdmin = currentUser?.username === 'Malika';
 
   return (
     <>
-      <Head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-        <link rel="icon" href="/assets/favicon.png" type="image/png" />
-        <title>insta qidiruv Private</title>
-      </Head>
-
       <style jsx global>{`
-        :root {
-          --bg: #071026;
-          --card: #0b1220;
-          --accent: #7c3aed;
-          --muted: #9aa4b2;
-          --glass: rgba(255, 255, 255, 0.03);
-          --popular: #f59e0b;
-          --success: #10b981;
-          --danger: #e85555;
-        }
         * {
           box-sizing: border-box;
-        }
-        html,
-        body {
-          height: 100%;
-        }
-        body {
           margin: 0;
-          font-family: "Space Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
-          background: black;
-          color: #e6eef6;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 18px;
+          padding: 0;
+        }
+
+        html, body {
+          width: 100%;
+          height: 100%;
+          overflow-x: hidden;
+        }
+
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          background: #000000;
+          color: #ffffff;
           -webkit-tap-highlight-color: transparent;
-          outline: none;
         }
 
-        .wrap {
+        .container {
           width: 100%;
-          max-width: 920px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
-          border-radius: 14px;
-          padding: 18px;
-          box-shadow: 0 10px 40px rgba(2, 6, 23, 0.6);
-          border: 2px solid;
-          display: grid;
-          gap: 14px;
+          min-height: 100vh;
+          padding-bottom: 40px;
         }
 
-        .list::-webkit-scrollbar {
-    width: 1px; /* scroll bar kengligi */
-}
-        
-
-        .top {
+        /* HEADER */
+        .site-header {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 100;
+          padding: 20px;
           display: flex;
-          gap: 10px;
+          justify-content: flex-end;
           align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
+          gap: 15px;
         }
 
-        .search-box {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          width: 100%;
-        }
-
-        input[type="text"],
-        input[type="file"] {
-          background: var(--glass);
-          border: 1px solid rgba(255, 255, 255, 0.03);
-          padding: 14px 16px;
-          border-radius: 10px;
-          color: inherit;
-          outline: none;
-          font-family: inherit;
-          font-size: 16px;
-          width: 100%;
-          letter-spacing: 0.6px;
-        }
-
-        input[type="text"]:focus,
-        input[type="file"]:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
-        }
-
-        button.btn {
-          color: white;
-          background-color: #030617;
-          padding: 14px 14px;
-          border-radius: 10px;
-          border: none;
+        .login-btn {
+          background: rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.2);
+          color: #fff;
+          padding: 10px 20px;
+          border-radius: 8px;
           cursor: pointer;
-          font-weight: 700;
-          transition: all 0.2s;
-        }
-        button.btn:hover {
-          background-color: #1a1f3a;
-          transform: translateY(-1px);
-        }
-
-        .layout {
-          display: grid;
-          grid-template-columns: 1fr 360px;
-          gap: 14px;
-        }
-        @media (max-width: 880px) {
-          .layout {
-            grid-template-columns: 1fr;
-          }
-          .wrap {
-            padding: 12px;
-          }
-          .top {
-            flex-direction: column;
-          }
-          .search-box {
-            width: 100%;
-          }
-        }
-
-        .card {
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
-          padding: 14px;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.02);
-          box-shadow: 0 6px 18px rgba(2, 6, 23, 0.35);
-        }
-
-        .list {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          max-height: 420px;
-          overflow: auto;
-          padding-right: 6px;
-        }
-        .item {
-          display: flex;
-          align-items: start;
-          gap: 12px;
-          padding: 10px;
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.01);
-          border: 1px solid rgba(255, 255, 255, 0.02);
-          transition: all 0.2s;
-          cursor: pointer;
-          position: relative;
-        }
-        .item:hover {
-          background: rgba(255, 255, 255, 0.03);
-          border-color: rgba(255, 255, 255, 0.05);
-          transform: translateY(-1px);
-        }
-
-        .item.popular {
-          background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.02));
-          border: 1px solid rgba(245, 158, 11, 0.15);
-        }
-
-        .item.popular:hover {
-          background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.04));
-          border-color: rgba(245, 158, 11, 0.25);
-        }
-
-        .username {
-          font-weight: 700;
-          max-width:350px;
-          margin-bottom: 4px;
-        }
-        .meta {
-          color: var(--muted);
-          font-size: 13px;
-        }
-        .profile-pic {
-          width: 60px;
-          height: 60px;
-          border-radius: 12px;
-          object-fit: cover;
-          margin-right: 12px;
-          border: 2px solid rgba(255, 255, 255, 0.1);
-        }
-        .post-item {
-          margin-top: 8px;
-          padding: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.02);
-          border-radius: 8px;
-        }
-        .post-media {
-          max-width: 100%;
-          height: auto;
-          border-radius: 8px;
-          margin-top: 8px;
-          max-height: 200px;
-          object-fit: cover;
-        }
-
-        label.small {
-          font-size: 13px;
-          color: var(--muted);
-          margin-bottom: 6px;
-          display: block;
-        }
-        input.small {
-          padding: 8px 10px;
-          border-radius: 8px;
           font-size: 14px;
-        }
-
-        .hint {
-          color: var(--muted);
-          font-size: 13px;
-          margin-top: 8px;
-        }
-        .admin-pill {
-          background: rgba(124, 58, 237, 0.14);
-          color: var(--accent);
-          padding: 6px 8px;
-          border-radius: 8px;
-          font-weight: 700;
-          font-size: 13px;
-          animation: pulse 2s infinite;
-          margin-top: 600px;
-        }
-
-        .post-entry {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          margin-bottom: 12px;
-          padding: 10px;
-          background: rgba(255, 255, 255, 0.02);
-          border-radius: 8px;
-        }
-        .remove-post {
-          background: #e85555;
-          padding: 8px;
-          font-size: 12px;
-        }
-        .loading {
-          opacity: 0.6;
-          pointer-events: none;
-        }
-        .upload-progress {
-          background: var(--accent);
-          height: 3px;
-          border-radius: 2px;
-          transition: width 0.3s;
-          margin-top: 5px;
-        }
-
-        /* YANGI VA ZOR ADMIN PANEL STYLES */
-        .admin-panel {
-          background: linear-gradient(135deg, rgba(124, 58, 237, 0.05), rgba(124, 58, 237, 0.02));
-          border: 1px solid rgba(124, 58, 237, 0.15);
-          border-radius: 20px;
-          padding: 24px;
-          box-shadow: 0 15px 50px rgba(124, 58, 237, 0.15);
-          position: relative;
-          overflow: hidden;
+          font-weight: 600;
+          transition: all 0.3s;
           backdrop-filter: blur(10px);
         }
 
-        .admin-panel::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 4px;
-          background: linear-gradient(90deg, var(--accent), #B54CFF, var(--popular));
-          border-radius: 20px 20px 0 0;
+        .login-btn:hover {
+          background: rgba(255,255,255,0.2);
         }
 
-        .admin-panel::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: radial-gradient(circle at 20% 80%, rgba(124, 58, 237, 0.05) 0%, transparent 50%),
-            radial-gradient(circle at 80% 20%, rgba(245, 158, 11, 0.05) 0%, transparent 50%);
-          pointer-events: none;
-          z-index: -1;
-        }
-
-        .admin-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-bottom: 20px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          flex-wrap: wrap;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        .admin-title {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          font-size: 22px;
-          font-weight: 800;
-          color: #fff;
-          text-shadow: 0 2px 10px rgba(124, 58, 237, 0.5);
-        }
-
-        .admin-title i {
-          background: linear-gradient(135deg, var(--accent), #B54CFF);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          font-size: 24px;
-          filter: drop-shadow(0 2px 4px rgba(124, 58, 237, 0.3));
-        }
-
-        .admin-form {
-          display: grid;
-          gap: 24px;
-        }
-
-        .form-section {
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-          padding: 20px;
-          border-radius: 16px;
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          box-shadow: 0 5px 15px rgba(2, 6, 23, 0.3);
-          transition: all 0.3s ease;
-        }
-
-        .form-section:hover {
-          border-color: rgba(124, 58, 237, 0.2);
-          box-shadow: 0 8px 25px rgba(2, 6, 23, 0.4);
-          transform: translateY(-2px);
-        }
-
-        .form-section-title {
-          font-size: 16px;
-          font-weight: 700;
-          color: #e6eef6;
-          margin-bottom: 16px;
+        .user-info {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding-bottom: 10px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .form-section-title i {
-          color: var(--accent);
-          font-size: 18px;
-        }
-
-        .form-row {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 16px;
-          margin-bottom: 18px;
-        }
-
-        .form-row:last-child {
-          margin-bottom: 0;
-        }
-
-        .input-group {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .input-group label {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--muted);
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-        }
-
-        .input-with-icon {
-          position: relative;
-        }
-
-        .input-with-icon i {
-          position: absolute;
-          left: 14px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: var(--muted);
-          font-size: 16px;
-          z-index: 1;
-        }
-
-        .input-with-icon input {
-          padding-left: 44px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          transition: all 0.3s ease;
-        }
-
-        .input-with-icon input:focus {
-          background: rgba(255, 255, 255, 0.04);
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
-        }
-
-        .posts-section {
-          border: 2px dashed rgba(124, 58, 237, 0.2);
-          border-radius: 16px;
-          padding: 20px;
-          margin: 20px 0;
-          background: rgba(124, 58, 237, 0.02);
-          transition: all 0.3s ease;
-        }
-
-        .posts-section:hover {
-          border-color: rgba(124, 58, 237, 0.3);
-          background: rgba(124, 58, 237, 0.04);
-        }
-
-        .posts-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 16px;
-        }
-
-        .posts-title {
-          font-size: 16px;
-          font-weight: 700;
-          color: #e6eef6;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .btn-add-post {
-          background: linear-gradient(135deg, var(--accent), #6d28d9);
-          color: white;
-          border: none;
-          padding: 10px 16px;
-          border-radius: 10px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
-        }
-
-        .btn-add-post:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
-        }
-
-        .post-entry {
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 12px;
-          padding: 16px;
-          margin-bottom: 16px;
-          position: relative;
-          transition: all 0.3s ease;
-        }
-
-        .post-entry:hover {
-          border-color: rgba(124, 58, 237, 0.2);
-          box-shadow: 0 5px 15px rgba(2, 6, 23, 0.3);
-        }
-
-        .post-entry-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 12px;
-        }
-
-        .post-entry-title {
-          font-size: 14px;
-          font-weight: 700;
-          color: #e6eef6;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .remove-post {
-          background: linear-gradient(135deg, var(--danger), #dc2626);
-          color: white;
-          border: none;
-          padding: 8px 12px;
+          background: rgba(255,255,255,0.1);
+          padding: 8px 15px;
           border-radius: 8px;
-          font-size: 12px;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .user-name {
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .logout-btn {
+          background: transparent;
+          border: none;
+          color: rgba(255,255,255,0.7);
           cursor: pointer;
-          transition: all 0.3s ease;
+          font-size: 14px;
+          padding: 0;
+          transition: color 0.3s;
+        }
+
+        .logout-btn:hover {
+          color: #fff;
+        }
+
+        /* CAROUSEL STYLES */
+        .carousel-wrapper {
+          width: 100%;
+          height: 500px;
+          position: relative;
+          overflow: hidden;
+          margin-bottom: 60px;
+        }
+
+        .carousel-container {
+          width: 100%;
+          height: 100%;
+          position: relative;
+        }
+
+        .carousel-slide {
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          opacity: 0;
+          transition: opacity 0.8s ease-in-out;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .carousel-slide.active {
+          opacity: 1;
+        }
+
+        .carousel-slide img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+        }
+
+        .carousel-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%);
+          padding: 40px 20px 20px;
+          z-index: 2;
+        }
+
+        .carousel-content {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 0 20px;
+        }
+
+        .carousel-title {
+          font-size: 32px;
+          font-weight: 700;
+          margin-bottom: 10px;
+          text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .carousel-meta {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 10px;
+          font-size: 14px;
+          color: rgba(255,255,255,0.8);
+        }
+
+        .carousel-meta-item {
           display: flex;
           align-items: center;
           gap: 6px;
         }
 
-        .remove-post:hover {
-          background: linear-gradient(135deg, #dc2626, #b91c1c);
-          transform: scale(0.95);
-          box-shadow: 0 4px 10px rgba(232, 85, 85, 0.3);
-        }
-
-        .admin-actions {
+        .carousel-genres {
           display: flex;
-          gap: 16px;
-          justify-content: flex-end;
-          margin-top: 24px;
           flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 10px;
         }
 
-        .btn-primary {
-          background: linear-gradient(135deg, var(--accent), #6d28d9);
-          color: white;
-          border: none;
-          padding: 14px 24px;
-          border-radius: 12px;
-          font-weight: 700;
+        .genre-badge {
+          background: rgba(255,255,255,0.15);
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        .carousel-dots {
+          position: absolute;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 10px;
+          z-index: 3;
+        }
+
+        .carousel-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.3);
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: all 0.3s;
+        }
+
+        .carousel-dot.active {
+          background: #fff;
+          width: 30px;
+          border-radius: 5px;
+        }
+
+        .carousel-empty {
           display: flex;
           align-items: center;
-          gap: 10px;
-          min-width: 140px;
           justify-content: center;
-          box-shadow: 0 5px 15px rgba(124, 58, 237, 0.3);
+          height: 100%;
+          color: rgba(255,255,255,0.5);
+          font-size: 18px;
         }
 
-        .btn-primary:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
+        /* ANIME CARDS SECTION */
+        .cards-section {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 0 20px;
         }
 
-        .btn-secondary {
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
-          color: #e6eef6;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 14px 24px;
-          border-radius: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.3s ease;
+        .section-header {
+          margin-bottom: 30px;
           display: flex;
           align-items: center;
-          gap: 10px;
-          min-width: 140px;
-          justify-content: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 20px;
         }
 
-        .btn-secondary:hover {
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
-          transform: translateY(-2px);
-          box-shadow: 0 5px 15px rgba(2, 6, 23, 0.3);
-        }
-
-        .btn-danger {
-          background: linear-gradient(135deg, var(--danger), #dc2626);
-          color: white;
-          border: none;
-          padding: 14px 24px;
-          border-radius: 12px;
+        .section-title {
+          font-size: 28px;
           font-weight: 700;
-          cursor: pointer;
-          transition: all 0.3s ease;
+          color: #fff;
           display: flex;
           align-items: center;
-          gap: 10px;
-          min-width: 140px;
-          justify-content: center;
-          box-shadow: 0 5px 15px rgba(232, 85, 85, 0.3);
-        }
-
-        .btn-danger:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(232, 85, 85, 0.4);
-        }
-
-        .admin-hint {
-          background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.04));
-          border: 1px solid rgba(245, 158, 11, 0.15);
-          border-radius: 12px;
-          padding: 16px;
-          margin-top: 20px;
-          color: var(--popular);
-          font-size: 13px;
-          line-height: 1.5;
-          display: flex;
-          align-items: flex-start;
           gap: 12px;
         }
 
-        .admin-hint i {
-          margin-top: 2px;
-          flex-shrink: 0;
-          color: var(--popular);
+        .admin-button {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          border: none;
+          color: #fff;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .admin-button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .cards-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 20px;
+          margin-bottom: 40px;
+        }
+
+        .anime-card {
+          cursor: pointer;
+          transition: transform 0.3s;
+          position: relative;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+
+        .anime-card:hover {
+          transform: translateY(-8px);
+          border-color: rgba(255,255,255,0.2);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .card-image-wrapper {
+          width: 100%;
+          aspect-ratio: 2/3;
+          position: relative;
+          overflow: hidden;
+          border-radius:20px;
+        }
+
+        .card-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s;
+        }
+
+        .anime-card:hover .card-image {
+          transform: scale(1.05);
+        }
+
+        .card-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 50%);
+          opacity: 0;
+          transition: opacity 0.3s;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          padding: 15px;
+        }
+
+        .anime-card:hover .card-overlay {
+          opacity: 1;
+        }
+
+        .card-overlay-info {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .card-overlay-meta {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 12px;
+        }
+
+        .card-rating {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          color: #fbbf24;
+        }
+
+        .card-episodes {
+          color: rgba(255,255,255,0.8);
+        }
+
+        .card-genres-overlay {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+
+        .genre-tag-small {
+          background: rgba(59, 130, 246, 0.3);
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 10px;
+          border: 1px solid rgba(59, 130, 246, 0.5);
+        }
+
+        .card-content {
+          padding: 15px;
+        }
+
+        .card-title {
           font-size: 16px;
+          font-weight: 600;
+          color: #fff;
+          margin-bottom: 8px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
-        .admin-users-section {
+        .card-info {
+          font-size: 13px;
+          color: rgba(255,255,255,0.6);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          display:none;
+        }
+
+        /* AUTH MODAL */
+        .auth-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 99999;
+          backdrop-filter: blur(8px);
+        }
+
+        .auth-modal {
+          background: #1a1a1a;
+          border-radius: 16px;
+          padding: 40px;
+          max-width: 400px;
+          width: 90%;
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .auth-modal-header {
           text-align: center;
-          margin-top: 28px;
-          padding-top: 20px;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          margin-bottom: 30px;
         }
 
-        /* Scrollbar styles for admin panel */
-        .admin-panel ::-webkit-scrollbar {
-          width: 6px;
+        .auth-modal-title {
+          font-size: 24px;
+          font-weight: 700;
+          margin-bottom: 10px;
         }
 
-        .admin-panel ::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.02);
-          border-radius: 10px;
+        .auth-modal-subtitle {
+          font-size: 14px;
+          color: rgba(255,255,255,0.6);
         }
 
-        .admin-panel ::-webkit-scrollbar-thumb {
-          background: var(--accent);
-          border-radius: 10px;
+        .auth-form {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
         }
 
-        .admin-panel ::-webkit-scrollbar-thumb:hover {
-          background: #6d28d9;
+        .auth-input-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
         }
 
-        /* Responsive improvements */
-        @media (max-width: 600px) {
-          .admin-panel {
-            padding: 20px 16px;
-          }
-
-          .admin-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 14px;
-          }
-
-          .admin-title {
-            font-size: 20px;
-          }
-
-          .form-row {
-            grid-template-columns: 1fr;
-          }
-
-          .admin-actions {
-            flex-direction: column;
-            gap: 12px;
-          }
-
-          .btn-primary,
-          .btn-secondary,
-          .btn-danger {
-            min-width: 100%;
-            justify-content: center;
-          }
-
-          .posts-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 12px;
-          }
-
-          .btn-add-post {
-            align-self: stretch;
-            justify-content: center;
-          }
+        .auth-label {
+          font-size: 14px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.8);
         }
 
-        @media (max-width: 400px) {
-          .admin-panel {
-            padding: 16px 12px;
-          }
-
-          .form-section {
-            padding: 16px;
-          }
-
-          .post-entry {
-            padding: 14px;
-          }
+        .auth-input {
+          width: 100%;
+          padding: 12px 16px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 8px;
+          color: #fff;
+          font-size: 14px;
+          transition: all 0.3s;
         }
 
-        /* Modal styles */
+        .auth-input:focus {
+          outline: none;
+          border-color: #3b82f6;
+          background: rgba(255,255,255,0.08);
+        }
+
+        .auth-submit-btn {
+          width: 100%;
+          padding: 14px;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          border: none;
+          color: #fff;
+          border-radius: 8px;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s;
+          margin-top: 10px;
+        }
+
+        .auth-submit-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .auth-submit-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .auth-switch {
+          text-align: center;
+          margin-top: 20px;
+          font-size: 14px;
+          color: rgba(255,255,255,0.6);
+        }
+
+        .auth-switch-link {
+          color: #3b82f6;
+          cursor: pointer;
+          font-weight: 600;
+          transition: color 0.3s;
+        }
+
+        .auth-switch-link:hover {
+          color: #2563eb;
+        }
+
+        .auth-close-btn {
+          position: absolute;
+          top: 15px;
+          right: 15px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: rgba(255,255,255,0.6);
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 20px;
+          transition: all 0.3s;
+        }
+
+        .auth-close-btn:hover {
+          background: rgba(255,255,255,0.1);
+          color: #fff;
+        }
+
+        /* MODAL */
         .modal-overlay {
           position: fixed;
           top: 0;
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.8);
-          backdrop-filter: blur(4px);
+          background: rgba(0,0,0,0.8);
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 1000;
-          animation: fadeIn 0.3s ease;
+          z-index: 99999;
         }
 
         .modal {
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 14px;
-          padding: 24px;
+          background: #1a1a1a;
+          border-radius: 12px;
+          padding: 30px;
           max-width: 400px;
           width: 90%;
-          box-shadow: 0 20px 60px rgba(2, 6, 23, 0.8);
-          animation: slideUp 0.3s ease;
+          border: 1px solid rgba(255,255,255,0.1);
         }
 
         .modal-header {
           display: flex;
           align-items: center;
           gap: 12px;
-          margin-bottom: 16px;
+          margin-bottom: 20px;
         }
 
         .modal-icon {
-          width: 24px;
-          height: 24px;
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 14px;
         }
 
         .modal-icon.success {
           background: #10b981;
-          color: white;
         }
+
         .modal-icon.error {
-          background: #e85555;
-          color: white;
-        }
-        .modal-icon.confirm {
-          background: #f59e0b;
-          color: white;
-        }
-        .modal-icon.info {
-          background: var(--accent);
-          color: white;
+          background: #ef4444;
         }
 
         .modal-title {
-          font-weight: 700;
-          font-size: 16px;
+          font-size: 18px;
+          font-weight: 600;
         }
 
         .modal-message {
-          color: var(--muted);
+          color: rgba(255,255,255,0.8);
           line-height: 1.5;
           margin-bottom: 20px;
         }
@@ -794,1016 +753,358 @@ export default function Home() {
         }
 
         .modal-btn {
-          padding: 10px 16px;
+          padding: 10px 20px;
           border-radius: 8px;
           border: none;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
+          font-size: 14px;
         }
 
         .modal-btn.primary {
-          background: var(--accent);
-          color: white;
-        }
-
-        .modal-btn.primary:hover {
-          background: #6d28d9;
-          transform: translateY(-1px);
+          background: #3b82f6;
+          color: #fff;
         }
 
         .modal-btn.secondary {
-          background: rgba(255, 255, 255, 0.05);
-          color: var(--muted);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255,255,255,0.1);
+          color: rgba(255,255,255,0.8);
         }
 
-        .modal-btn.secondary:hover {
-          background: rgba(255, 255, 255, 0.1);
-          color: #e6eef6;
+        /* RESPONSIVE */
+        @media (max-width: 1200px) {
+          .cards-grid {
+            grid-template-columns: repeat(4, 1fr);
+          }
         }
 
-        .posts-count {
-          background: rgba(124, 58, 237, 0.1);
-          color: var(--accent);
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 600;
-          margin-top: 4px;
-          display: inline-block;
-        }
-
-        .popular-badge {
-          position: absolute;
-          right: 8px;
+        @media (max-width: 900px) {
+          .cards-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
           
-          background: linear-gradient(135deg, var(--popular), #d97706);
-          color: white;
-          padding: 4px 8px;
-          border-radius: 12px;
-          font-size: 10px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
-          animation: popularPulse 2s ease-in-out infinite;
+          .carousel-wrapper {
+            height: 400px;
+          }
 
+          .carousel-title {
+            font-size: 24px;
+          }
         }
 
-        .search-count {
-          background: rgba(245, 158, 11, 0.1);
-          color: var(--popular);
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: 600;
-          margin-left: 8px;
+        @media (max-width: 600px) {
+          .cards-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+          }
+
+          .carousel-wrapper {
+            height: 300px;
+          }
+
+          .carousel-title {
+            font-size: 20px;
+          }
+
+          .carousel-meta {
+            font-size: 12px;
+            gap: 12px;
+          }
+
+          .section-title {
+            font-size: 22px;
+          }
+
+          .cards-section {
+            padding: 0 15px;
+          }
+
+          .carousel-content {
+padding: 25px 10px;          }
         }
 
-        .popular-section {
-          margin-bottom: 20px;
-        }
-
-        .section-header {
+        .loading-spinner {
           display: flex;
+          justify-content: center;
           align-items: center;
-          gap: 8px;
-          justify-content: space-between;
-          margin-bottom: 12px;
-          padding-bottom: 8px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 40px;
+          color: rgba(255,255,255,0.5);
+          grid-column: 1 / -1;
         }
 
-        .bir{
-          display:flex;
-          gap: 8px;
-         align-items:center;
-          }
-
-        .section-title {
-          font-size: 14px;
-          font-weight: 700;
-          color: var(--popular);
+        .empty-state {
+          grid-column: 1 / -1;
+          text-align: center;
+          padding: 60px 20px;
+          color: rgba(255,255,255,0.5);
         }
 
-        .section-icon {
-          font-size: 16px;
-          color: var(--popular);
-        }
-
-        .input-group label {
-          display: none;
-        }
-
-        .by {
-          font-size: 6px;
-          position: absolute;
-          right: 0;
-          margin-right: 10px;
-          bottom: -2px;
-        }
-
-        .by a {
-          text-decoration: none;
-          color: whitesmoke;
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        @keyframes slideUp {
-          from {
-            transform: translateY(20px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-
-        @keyframes pulse {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.7;
-          }
-        }
-
-        @keyframes popularPulse {
-          0%,
-          100% {
-            transform: scale(1);
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
-          }
-          50% {
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
-          }
-        }
-
-        @media (max-width: 480px) {
-          .modal {
-            margin: 20px;
-            padding: 20px;
-          }
-          .profile-pic {
-            width: 50px;
-            height: 50px;
-          }
-          .popular-badge {
-            font-size: 9px;
-            padding: 3px 6px;
-          }
-            .username{
-            max-width:180px;
-            }
-        }
-
-        @media (max-width: 345px) {
-          .popular-badge {
-            margin-right: 170px;
-            top: 65px;
-          }
-        }
-
-        @media (max-width: 335px) {
-          .popular-badge {
-            margin-right: 160px;
-            top: 65px;
-          }
+        .empty-state i {
+          font-size: 48px;
+          margin-bottom: 15px;
+          opacity: 0.3;
         }
       `}</style>
 
-      <div className="wrap">
-        <div className="top">
-          <div style={{ width: '100%' }} className="search-box">
-            <input id="main-input" type="text" placeholder="Username kiriting" />
-            <button id="btn-search" className="btn">
-              <i className="fa-solid fa-magnifying-glass"></i>
+      <div className="container">
+        {/* Header */}
+        <div className="site-header">
+          {currentUser ? (
+            <>
+              <div className="user-info">
+                <span className="user-name">👤 {currentUser.username}</span>
+                <button className="logout-btn" onClick={handleLogout}>
+                  Chiqish
+                </button>
+              </div>
+              {isAdmin && (
+                <button className="admin-button" onClick={goToAdmin}>
+                  🔒 Admin Panel
+                </button>
+              )}
+            </>
+          ) : (
+            <button className="login-btn" onClick={() => showAuthModal('login')}>
+              🔑 Login
             </button>
-          </div>
-          <div id="admin-indicator" style={{ display: 'none' }} className="admin-pill">
-            ADMIN
-          </div>
+          )}
         </div>
 
-        <div className="layout">
-          <div className="card">
-            <div id="results" className="list">
-              <div className="meta">Hech qanday qidiruv hali bajarilmadi.</div>
-            </div>
-          </div>
-
-          <div id="admin-area" style={{ display: 'none' }}>
-            <div className="admin-panel">
-              <div className="admin-header">
-                <div className="admin-title">
-                  <i className="fa-solid fa-crown"></i>
-                  <span>Admin Panel</span>
+        {/* Carousel */}
+        <div className="carousel-wrapper">
+          <div className="carousel-container">
+            {carouselData.length === 0 ? (
+              <div className="carousel-empty">
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '15px', opacity: 0.3 }}>🎬</div>
+                  <div>Carousel bo'sh</div>
                 </div>
-                <button id="btn-lock" className="btn-danger">
-                  <i className="fa-solid fa-lock"></i> Lock
-                </button>
               </div>
-
-              <div className="admin-form">
-                <div className="form-section">
-                  <div className="form-section-title">
-                    <i className="fa-solid fa-user"></i>
-                    Foydalanuvchi ma'lumotlari
+            ) : (
+              carouselData.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`carousel-slide ${index === currentSlide ? 'active' : ''}`}
+                >
+                  <img src={item.anime_cards.image_url} alt={item.anime_cards.title} />
+                  <div className="carousel-overlay">
+                    <div className="carousel-content">
+                      <div className="carousel-title">{item.anime_cards.title}</div>
+                      <div className="carousel-meta">
+                        <div className="carousel-meta-item">
+                          <span>⭐</span>
+                          <span>{item.anime_cards.rating}</span>
+                        </div>
+                        <div className="carousel-meta-item">
+                          <span>📺</span>
+                          <span>{item.anime_cards.episodes} qism</span>
+                        </div>
+                      </div>
+                      {item.anime_cards.genres && item.anime_cards.genres.length > 0 && (
+                        <div className="carousel-genres">
+                          {item.anime_cards.genres.map((genre, idx) => (
+                            <span key={idx} className="genre-badge">{genre}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                </div>
+              ))
+            )}
+          </div>
+          {carouselData.length > 0 && (
+            <div className="carousel-dots">
+              {carouselData.map((_, index) => (
+                <div
+                  key={index}
+                  className={`carousel-dot ${index === currentSlide ? 'active' : ''}`}
+                  onClick={() => goToSlide(index)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
-                  <div className="form-row">
-                    <div className="input-group">
-                      <label>Instagram Username</label>
-                      <div className="input-with-icon">
-                        <i className="fa-brands fa-instagram"></i>
-                        <input id="add-username" type="text" placeholder="username" />
+        {/* Anime Cards */}
+        <div className="cards-section">
+          <div className="section-header">
+            <h2 className="section-title">
+              🎬 Anime Collection
+            </h2>
+          </div>
+          <div className="cards-grid">
+            {loading ? (
+              <div className="loading-spinner">
+                <div style={{ fontSize: '24px' }}>⏳</div>
+              </div>
+            ) : animeCards.length === 0 ? (
+              <div className="empty-state">
+                <div style={{ fontSize: '48px', marginBottom: '15px', opacity: 0.3 }}>📭</div>
+                <div>Hali anime qo'shilmagan</div>
+              </div>
+            ) : (
+              animeCards.map((anime) => (
+                <div key={anime.id} className="anime-card">
+                  <div className="card-image-wrapper">
+                    <img className="card-image" src={anime.image_url} alt={anime.title} />
+                    <div className="card-overlay">
+                      <div className="card-overlay-info">
+                        <div className="card-overlay-meta">
+                          <div className="card-rating">
+                            <span>⭐</span>
+                            <span>{anime.rating}</span>
+                          </div>
+                          <div className="card-episodes">{anime.episodes} qism</div>
+                        </div>
+                        {anime.genres && anime.genres.length > 0 && (
+                          <div className="card-genres-overlay">
+                            {anime.genres.slice(0, 3).map((genre, idx) => (
+                              <span key={idx} className="genre-tag-small">{genre}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  <div className="form-row">
-                    <div className="input-group">
-                      <label>Izoh (ixtiyoriy)</label>
-                      <div className="input-with-icon">
-                        <i className="fa-solid fa-comment"></i>
-                        <input id="add-note" type="text" placeholder="izoh" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="input-group">
-                      <label>Profil rasmi (ixtiyoriy)</label>
-                      <input id="profile-pic" type="file" accept="image/*" />
-                      <div id="profile-progress" className="upload-progress" style={{ width: '0%', display: 'none' }}></div>
+                  <div className="card-content">
+                    <div className="card-title">{anime.title}</div>
+                    <div className="card-info">
+                      <span>⭐ {anime.rating}</span>
+                      <span>📺 {anime.episodes}</span>
                     </div>
                   </div>
                 </div>
-
-                <div className="posts-section">
-                  <div className="posts-header">
-                    <div className="posts-title">
-                      <i className="fa-solid fa-images"></i>
-                      Postlar
-                    </div>
-                    <button id="btn-add-post" className="btn-add-post" type="button">
-                      <i className="fa-solid fa-plus"></i>
-                      Post qo'shish
-                    </button>
-                  </div>
-                  <div id="posts-container"></div>
-                </div>
-
-                <div className="admin-actions">
-                  <button id="btn-add" className="btn-primary" type="button">
-                    <i className="fa-solid fa-user-plus"></i>
-                    Qo'shish
-                  </button>
-                </div>
-
-                <div className="admin-hint">
-                  <i className="fa-solid fa-info-circle"></i>
-                  <span>Qo'shilgan hisoblar hamma uchun qidiruvda ko'rinadi. Fayllar assets/ papkasiga saqlanadi.</span>
-                </div>
-              </div>
-
-              <div className="admin-users-section">
-                <button id="btn-users" className="btn-secondary" type="button">
-                  <i className="fa-solid fa-users"></i>
-                  Users
-                </button>
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
 
+        {/* Auth Modal */}
+        {authModal.show && (
+          <AuthModal 
+            mode={authModal.mode}
+            onClose={hideAuthModal}
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+            loading={authLoading}
+          />
+        )}
+
+        {/* Modal */}
         {modal.show && (
           <div className="modal-overlay" onClick={hideModal}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <div className={`modal-icon ${modal.type}`}>
-                  {modal.type === 'success' && <i className="fa-solid fa-check"></i>}
-                  {modal.type === 'error' && <i className="fa-solid fa-times"></i>}
-                  {modal.type === 'confirm' && <i className="fa-solid fa-exclamation"></i>}
-                  {modal.type === 'info' && <i className="fa-solid fa-info"></i>}
+                  {modal.type === 'success' && '✓'}
+                  {modal.type === 'error' && '✕'}
                 </div>
                 <div className="modal-title">
-                  {modal.type === 'success' && 'Muvaffaqiyat'}
+                  {modal.type === 'success' && 'Muvaffaqiyatli'}
                   {modal.type === 'error' && 'Xato'}
-                  {modal.type === 'confirm' && 'Tasdiqlash'}
-                  {modal.type === 'info' && "Ma'lumot"}
                 </div>
               </div>
               <div className="modal-message">{modal.message}</div>
               <div className="modal-actions">
-                {modal.type === 'confirm' ? (
-                  <>
-                    <button className="modal-btn secondary" onClick={hideModal}>
-                      <i className="fa-solid fa-times"></i> Bekor qilish
-                    </button>
-                    <button
-                      className="modal-btn primary"
-                      onClick={() => {
-                        modal.onConfirm();
-                        hideModal();
-                      }}
-                    >
-                      <i className="fa-solid fa-check"></i> Tasdiqlash
-                    </button>
-                  </>
-                ) : (
-                  <button className="modal-btn primary" onClick={hideModal}>
-                    <i className="fa-solid fa-check"></i> OK
-                  </button>
-                )}
+                <button className="modal-btn primary" onClick={hideModal}>OK</button>
               </div>
             </div>
           </div>
         )}
       </div>
-      <h1 className="by">
-        Powered by <a href="https://t.me/mrkeloff">Abdurhmonovv</a>
-      </h1>
-      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-          const SUPABASE_URL = "https://xzbwfoacsnrmgjmildcr.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6Yndmb2Fjc25ybWdqbWlsZGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTkxNzUsImV4cCI6MjA3Mzc3NTE3NX0.c10rEbuzQIkVvuJEecEltokgaj6AqjyP5IoFVffjizc";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const bucket = 'instagram-media';
-
-const mainInput = document.getElementById('main-input');
-const btnSearch = document.getElementById('btn-search');
-const results = document.getElementById('results');
-const adminArea = document.getElementById('admin-area');
-const adminIndicator = document.getElementById('admin-indicator');
-const btnAdd = document.getElementById('btn-add');
-const addUsername = document.getElementById('add-username');
-const addNote = document.getElementById('add-note');
-const profilePic = document.getElementById('profile-pic');
-const postsContainer = document.getElementById('posts-container');
-const btnAddPost = document.getElementById('btn-add-post');
-const btnLock = document.getElementById('btn-lock');
-const btnUsers = document.getElementById('btn-users');
-const profileProgress = document.getElementById('profile-progress');
-
-let adminSecretValue = null;
-let isAdmin = false;
-let postEntries = [];
-
-// Initialization
-(async function init() {
-  try {
-    const result = await supabaseClient
-      .from('secrets')
-      .select('value')
-      .eq('name', 'admin_secret')
-      .single();
-    if (!result.error && result.data) adminSecretValue = result.data.value;
-
-    if (localStorage.getItem('is_admin') === '1') {
-      isAdmin = true;
-      showAdmin();
-    }
-
-    await initializeSearchStats();
-    await loadPopularUsers();
-  } catch (error) {
-    console.error('Initialization error:', error);
-  }
-})();
-
-async function initializeSearchStats() {
-  try {
-    const result = await supabaseClient
-      .from('search_statistics')
-      .select('id')
-      .limit(1);
-      
-    if (result.error) {
-      console.log('Search statistics table not found or error:', result.error.message);
-    }
-  } catch (error) {
-    console.log('Error initializing search stats:', error);
-  }
-}
-
-async function incrementProfileView(username) {
-  try {
-    const existingResult = await supabaseClient
-      .from('search_statistics')
-      .select('*')
-      .eq('username', username)
-      .single();
-
-    if (existingResult.error && existingResult.error.code !== 'PGRST116') {
-      console.error('Error checking existing stats:', existingResult.error);
-      return;
-    }
-
-    if (existingResult.data) {
-      const updateResult = await supabaseClient
-        .from('search_statistics')
-        .update({ 
-          profile_views: (existingResult.data.profile_views || 0) + 1,
-          last_viewed: new Date().toISOString()
-        })
-        .eq('username', username);
-      
-      if (updateResult.error) {
-        console.error('Error updating profile view count:', updateResult.error);
-      }
-    } else {
-      const insertResult = await supabaseClient
-        .from('search_statistics')
-        .insert({ 
-          username: username,
-          search_count: 0,
-          profile_views: 1,
-          last_viewed: new Date().toISOString()
-        });
-      
-      if (insertResult.error) {
-        console.error('Error inserting profile view count:', insertResult.error);
-      }
-    }
-  } catch (error) {
-    console.error('Error in incrementProfileView:', error);
-  }
-}
-
-async function incrementSearchCount(username) {
-  try {
-    const existingResult = await supabaseClient
-      .from('search_statistics')
-      .select('*')
-      .eq('username', username)
-      .single();
-
-    if (existingResult.error && existingResult.error.code !== 'PGRST116') {
-      console.error('Error checking existing stats:', existingResult.error);
-      return;
-    }
-
-    if (existingResult.data) {
-      const updateResult = await supabaseClient
-        .from('search_statistics')
-        .update({ 
-          search_count: existingResult.data.search_count + 1,
-          last_searched: new Date().toISOString()
-        })
-        .eq('username', username);
-      
-      if (updateResult.error) {
-        console.error('Error updating search count:', updateResult.error);
-      }
-    } else {
-      const insertResult = await supabaseClient
-        .from('search_statistics')
-        .insert({ 
-          username: username,
-          search_count: 1,
-          profile_views: 0,
-          last_searched: new Date().toISOString()
-        });
-      
-      if (insertResult.error) {
-        console.error('Error inserting search count:', insertResult.error);
-      }
-    }
-  } catch (error) {
-    console.error('Error in incrementSearchCount:', error);
-  }
-}
-
-async function loadPopularUsers() {
-  try {
-    const statsResult = await supabaseClient
-      .from('search_statistics')
-      .select('username, profile_views, search_count')
-      .order('profile_views', { ascending: false })
-      .limit(10);
-
-    if (statsResult.error || !statsResult.data || statsResult.data.length === 0) {
-      results.innerHTML = '<div class="meta">Hech qanday profil hali korilmagan.</div>';
-      return;
-    }
-
-    const viewedUsers = statsResult.data.filter(function(stat) {
-      return stat.profile_views > 0;
-    });
-
-    if (viewedUsers.length === 0) {
-      results.innerHTML = '<div class="meta">Hech qanday profil hali korilmagan.</div>';
-      return;
-    }
-
-    const usernames = viewedUsers.map(function(stat) {
-      return stat.username;
-    });
-    
-    const accountsResult = await supabaseClient
-      .from('instagram_accounts')
-      .select('*')
-      .in('username', usernames);
-
-    if (accountsResult.error || !accountsResult.data) {
-      results.innerHTML = '<div class="meta">Mashhur foydalanuvchilarni yuklab bolmadi.</div>';
-      return;
-    }
-
-    const popularUsers = accountsResult.data.map(function(account) {
-      const stats = viewedUsers.find(function(stat) {
-        return stat.username === account.username;
-      });
-      return {
-        id: account.id,
-        username: account.username,
-        note: account.note,
-        profile_pic_url: account.profile_pic_url,
-        profile_views: stats ? stats.profile_views : 0,
-        search_count: stats ? stats.search_count : 0
-      };
-    }).sort(function(a, b) {
-      return b.profile_views - a.profile_views;
-    });
-
-    await renderPopularUsers(popularUsers);
-  } catch (error) {
-    console.error('Error loading popular users:', error);
-    results.innerHTML = '<div class="meta">Xato yuz berdi.</div>';
-  }
-}
-
-async function renderPopularUsers(users) {
-  results.innerHTML = '';
-  
-  if (!users || users.length === 0) {
-    results.innerHTML = '<div class="meta">Mashhur foydalanuvchilar topilmadi.</div>';
-    return;
-  }
-
-  const headerDiv = document.createElement('div');
-  headerDiv.className = 'section-header';
-  headerDiv.innerHTML = '<div class="bir"><i class="fa-solid fa-fire section-icon"></i>' +
-    '<span class="section-title">Top profillar</span></div> <div style="display:flex; align-items:center; gap:10px;"><a style="font-size:22px; color:white; border:2px solid; padding:0px 5px; border-radius:10px;" href="/chats"> <i  class="fa-solid fa-comment-sms"></i>  </a> <a style="font-size:22px; color:white; border:2px solid; padding:0px 7px; border-radius:10px;" href="/reels"> <i class="fa-solid fa-play"></i> </a></div>'; 
-  results.appendChild(headerDiv);
-
-  for (let i = 0; i < users.length; i++) {
-    const user = users[i];
-    const postsResult = await supabaseClient
-      .from('posts')
-      .select('id')
-      .eq('account_id', user.id);
-    
-    const postsCount = postsResult.data ? postsResult.data.length : 0;
-    
-    const div = document.createElement('div');
-    div.className = 'item popular';
-    
-    div.innerHTML = '<div class="popular-badge"><i class="fa-solid fa-fire"></i></div>' +
-      '<div style="display:flex;align-items:start;width:100%">' + 
-      (user.profile_pic_url ? '<img class="profile-pic" src="' + user.profile_pic_url + '" alt="Profile">' : '') + 
-      '<div style="flex:1"><div class="username">@' + escapeHtml(user.username) + 
-      '<span class="search-count"><i class="fa-solid fa-eye"></i> ' + user.profile_views + '</span></div>' +
-      '<div class="meta">' + escapeHtml(user.note || 'Izoh yoq') + '</div>' + 
-      (postsCount > 0 ? '<div class="posts-count"><i class="fa-solid fa-images"></i> ' + postsCount + ' ta post</div>' : '') +
-      '</div></div>';
-    
-    div.addEventListener('click', function() {
-      incrementProfileView(user.username);
-      window.location.href = '/profile/' + encodeURIComponent(user.username);
-    });
-    
-    results.appendChild(div);
-  }
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-  return str.replace(/[&<>"']/g, function(m) {
-    return map[m];
-  });
-}
-
-async function renderList(items, isSearchResult) {
-  results.innerHTML = '';
-  if (!items || items.length === 0) {
-    results.innerHTML = '<div class="meta">Hech narsa topilmadi.</div>';
-    return;
-  }
-
-  if (isSearchResult) {
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'section-header';
-    headerDiv.innerHTML = '<i class="fa-solid fa-search section-icon"></i>' +
-      '<span class="section-title">Qidiruv natijalari</span>';
-    results.appendChild(headerDiv);
-  }
-  
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const postsResult = await supabaseClient
-      .from('posts')
-      .select('id')
-      .eq('account_id', item.id);
-    
-    const postsCount = postsResult.data ? postsResult.data.length : 0;
-    
-    const div = document.createElement('div');
-    div.className = 'item';
-    
-    div.innerHTML = '<div style="display:flex;align-items:start;width:100%">' + 
-      (item.profile_pic_url ? '<img class="profile-pic" src="' + item.profile_pic_url + '" alt="Profile">' : '') + 
-      '<div style="flex:1"><div class="username">@' + escapeHtml(item.username) + '</div>' +
-      '<div class="meta">' + escapeHtml(item.note || 'Izoh yoq') + '</div>' + 
-      (postsCount > 0 ? '<div class="posts-count"><i class="fa-solid fa-images"></i> ' + postsCount + ' ta post</div>' : '') +
-      '</div></div>';
-    
-    div.addEventListener('click', function() {
-      incrementProfileView(item.username);
-      window.location.href = '/profile/' + encodeURIComponent(item.username);
-    });
-    
-    results.appendChild(div);
-  }
-}
-
-function showAdmin() {
-  adminArea.style.display = 'block';
-  adminIndicator.style.display = 'inline-block';
-  localStorage.setItem('is_admin', '1');
-}
-
-function hideAdmin() {
-  adminArea.style.display = 'none';
-  adminIndicator.style.display = 'none';
-  localStorage.removeItem('is_admin');
-  isAdmin = false;
-}
-
-function addPostEntry() {
-  const postDiv = document.createElement('div');
-  postDiv.className = 'post-entry';
-  postDiv.innerHTML = 
-    '<div class="post-entry-header">' +
-      '<div class="post-entry-title">' +
-        '<i class="fa-solid fa-image"></i>' +
-        'Post #' + (postEntries.length + 1) +
-      '</div>' +
-      '<button class="remove-post" type="button">' +
-        '<i class="fa-solid fa-trash"></i>' +
-      '</button>' +
-    '</div>' +
-    '<div class="input-group">' +
-      '<label>Post izoh (ixtiyoriy)</label>' +
-      '<input type="text" class="post-content" placeholder="Post izoh" />' +
-    '</div>' +
-    '<div class="input-group">' +
-      '<label>Post media (rasm yoki video, ixtiyoriy, bir nechta fayl tanlash mumkin)</label>' +
-      '<input type="file" class="post-media" accept="image/*,video/*" multiple />' +
-      '<div class="upload-progress" style="width:0%;display:none"></div>' +
-    '</div>';
-  
-  postsContainer.appendChild(postDiv);
-  postEntries.push(postDiv);
-
-  const mediaInput = postDiv.querySelector('.post-media');
-  const uploadBtn = document.createElement('button');
-  uploadBtn.className = 'btn-primary btn-upload-post';
-  uploadBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Jonatish';
-  uploadBtn.style.display = 'none';
-  uploadBtn.style.marginTop = '8px';
-  postDiv.appendChild(uploadBtn);
-
-  mediaInput.addEventListener('change', () => {
-    if (mediaInput.files.length > 0) {
-      uploadBtn.style.display = 'block';
-    } else {
-      uploadBtn.style.display = 'none';
-    }
-  });
-
-  uploadBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
-    const username = addUsername.value.trim();
-    if (!username) {
-      window.showModal('error', "Username kiriting avval");
-      return;
-    }
-    const content = postDiv.querySelector('.post-content').value.trim();
-    const files = Array.from(mediaInput.files);
-    const progress = postDiv.querySelector('.upload-progress');
-    if (files.length === 0) {
-      window.showModal('error', "Media fayllarni tanlang");
-      return;
-    }
-    try {
-      uploadBtn.classList.add('loading');
-      uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Yuklanmoqda...';
-      const urls = await uploadToSupabase(files, 'post', username, postEntries.indexOf(postDiv) + 1, (percent) => {
-        showProgress(progress, percent);
-      });
-      postDiv.dataset.mediaUrls = JSON.stringify(urls);
-      postDiv.dataset.content = content;
-      uploadBtn.disabled = true;
-      uploadBtn.innerHTML = '<i class="fa-solid fa-check"></i> Yuklandi';
-      mediaInput.disabled = true;
-      postDiv.querySelector('.post-content').disabled = true;
-    } catch (error) {
-      window.showModal('error', "Yuklashda xato: " + error.message);
-    } finally {
-      uploadBtn.classList.remove('loading');
-    }
-  });
-
-  postDiv.querySelector('.remove-post').addEventListener('click', async function(e) {
-    e.preventDefault();
-    if (postDiv.dataset.mediaUrls) {
-      const urls = JSON.parse(postDiv.dataset.mediaUrls);
-      for (let url of urls) {
-        const path = url.split('/object/public/' + bucket + '/')[1];
-        await supabaseClient.storage.from(bucket).remove([path]);
-      }
-    }
-    postsContainer.removeChild(postDiv);
-    postEntries = postEntries.filter(function(p) {
-      return p !== postDiv;
-    });
-    postEntries.forEach(function(entry, index) {
-      const title = entry.querySelector('.post-entry-title');
-      title.innerHTML = '<i class="fa-solid fa-image"></i>Post #' + (index + 1);
-    });
-  });
-}
-
-function validateFileSize(file, maxSizeMB) {
-  if (typeof maxSizeMB === 'undefined') maxSizeMB = 500;
-  const maxSizeBytes = maxSizeMB * 1024 * 1024;
-  if (file.size > maxSizeBytes) {
-    throw new Error(file.name + ' fayli juda katta (' + (file.size / (1024*1024)).toFixed(1) + 'MB). Maksimal ruxsat etilgan hajm: ' + maxSizeMB + 'MB');
-  }
-  return true;
-}
-
-async function uploadToSupabase(files, type, username, postIndex = null, onProgress = () => {}) {
-  files = Array.isArray(files) ? files : [files];
-  const urls = [];
-  let totalSize = files.reduce((sum, f) => sum + f.size, 0);
-  let totalLoaded = 0;
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    validateFileSize(file);
-    let path;
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (type === 'profile') {
-      path = \`profiles/\${username}/profile.\${ext}\`;
-    } else {
-      path = \`posts/\${username}/\${postIndex}_\${i}.\${ext}\`;
-    }
-    const { data: signedData, error: signedError } = await supabaseClient.storage.from(bucket).createSignedUploadUrl(path);
-    if (signedError) throw signedError;
-
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('PUT', signedData.url, true);
-      xhr.setRequestHeader('Content-Type', file.type);
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const fileLoaded = e.loaded;
-          const currentTotalLoaded = totalLoaded + fileLoaded;
-          const percent = (currentTotalLoaded / totalSize) * 100;
-          onProgress(percent);
-        }
-      };
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          totalLoaded += file.size;
-          onProgress((totalLoaded / totalSize) * 100);
-          resolve();
-        } else {
-          reject(new Error(\`Upload failed: \${xhr.status}\`));
-        }
-      };
-      xhr.onerror = reject;
-      xhr.send(file);
-    });
-
-    const { publicUrl } = supabaseClient.storage.from(bucket).getPublicUrl(path);
-    urls.push(publicUrl);
-  }
-  return urls;
-}
-
-function showProgress(progressElement, percent) {
-  if (progressElement) {
-    progressElement.style.display = 'block';
-    progressElement.style.width = percent + '%';
-    if (percent === 100) {
-      setTimeout(function() {
-        progressElement.style.display = 'none';
-        progressElement.style.width = '0%';
-      }, 1000);
-    }
-  }
-}
-
-// Event listeners
-btnAddPost.addEventListener('click', function(e) {
-  e.preventDefault();
-  addPostEntry();
-});
-
-btnLock.addEventListener('click', function(e) {
-  e.preventDefault();
-  hideAdmin();
-  window.showModal('info', "Admin paneli yopildi");
-});
-
-btnUsers.addEventListener('click', function(e) {
-  e.preventDefault();
-  window.location.href = '/users';
-});
-
-btnAdd.addEventListener('click', async function(e) {
-  e.preventDefault();
-  
-  if (!isAdmin) { 
-    window.showModal('error', "Admin emassiz"); 
-    return; 
-  }
-  
-  const username = addUsername.value.trim();
-  const note = addNote.value.trim();
-  
-  if (!username) { 
-    window.showModal('error', "Username kiriting"); 
-    return; 
-  }
-
-  let allUploaded = true;
-  for (let postDiv of postEntries) {
-    const mediaInput = postDiv.querySelector('.post-media');
-    if (mediaInput.files.length > 0 && !postDiv.dataset.mediaUrls) {
-      allUploaded = false;
-      break;
-    }
-  }
-  if (!allUploaded) {
-    window.showModal('error', "Barcha post media larini yuklang avval (Jonatish tugmasi orqali)");
-    return;
-  }
-
-  btnAdd.classList.add('loading');
-  btnAdd.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Yuklanmoqda...';
-
-  try {
-    let profileUrl = null;
-    
-    const profileFile = profilePic.files[0];
-    if (profileFile) {
-      const profileUrls = await uploadToSupabase(profileFile, 'profile', username, null, function(percent) {
-        showProgress(profileProgress, percent);
-      });
-      profileUrl = profileUrls[0];
-    }
-
-    const accountResult = await supabaseClient
-      .from('instagram_accounts')
-      .insert({ username: username, note: note, profile_pic_url: profileUrl })
-      .select()
-      .single();
-      
-    if (accountResult.error) {
-      throw new Error("Hisob qo'shishda xato: " + accountResult.error.message);
-    }
-    
-    const accountId = accountResult.data.id;
-
-    for (let i = 0; i < postEntries.length; i++) {
-      const postDiv = postEntries[i];
-      const content = postDiv.dataset.content || postDiv.querySelector('.post-content').value.trim();
-      const mediaUrls = postDiv.dataset.mediaUrls ? JSON.parse(postDiv.dataset.mediaUrls) : [];
-      
-      if (mediaUrls.length > 0) {
-        for (let j = 0; j < mediaUrls.length; j++) {
-          const mediaUrl = mediaUrls[j];
-          const ext = mediaUrl.split('.').pop().toLowerCase();
-          const mediaType = ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext) ? 'video' : 'image';
-          
-          const postResult = await supabaseClient.from('posts').insert({
-            account_id: accountId,
-            content: content || null,
-            media_url: mediaUrl,
-            media_type: mediaType
-          });
-          
-          if (postResult.error) {
-            throw new Error('Post saqlashda xato: ' + postResult.error.message);
-          }
-        }
-      } else if (content) {
-        const postResult = await supabaseClient.from('posts').insert({
-          account_id: accountId,
-          content: content
-        });
-        
-        if (postResult.error) {
-          throw new Error('Text post saqlashda xato: ' + postResult.error.message);
-        }
-      }
-    }
-
-    addUsername.value = '';
-    addNote.value = '';
-    profilePic.value = '';
-    postsContainer.innerHTML = '';
-    postEntries = [];
-    
-    window.showModal('success', "Muvaffaqiyatli qo'shildi!");
-
-  } catch (error) {
-    window.showModal('error', "Xato: " + error.message);
-  } finally {
-    btnAdd.classList.remove('loading');
-    btnAdd.innerHTML = '<i class="fa-solid fa-user-plus"></i> Qoshish';
-  }
-});
-
-btnSearch.addEventListener('click', async function(e) {
-  e.preventDefault();
-  const q = mainInput.value.trim();
-  
-  if (!q) { 
-    await loadPopularUsers();
-    return; 
-  }
-
-  if (adminSecretValue && q === adminSecretValue) {
-    isAdmin = true;
-    showAdmin();
-    results.innerHTML = '<div class="meta"><i class="fa-solid fa-crown"></i> Admin boldingiz</div>';
-    mainInput.value = '';
-    return;
-  }
-
-  results.innerHTML = '<div class="meta"><i class="fa-solid fa-spinner fa-spin"></i> Qidirilmoqda...</div>';
-
-  await incrementSearchCount(q);
-
-  try {
-    const searchResult = await supabaseClient
-      .from('instagram_accounts')
-      .select('*')
-      .ilike('username', '%' + q + '%')
-      .limit(3);
-    
-    if (searchResult.error) { 
-      console.error('Search error:', searchResult.error);
-      results.innerHTML = '<div class="meta">Qidirishda xato yuz berdi</div>'; 
-      return; 
-    }
-    
-    renderList(searchResult.data, true);
-  } catch (error) {
-    console.error('Search error:', error);
-    results.innerHTML = '<div class="meta">Qidirishda xato yuz berdi</div>';
-  }
-});
-
-mainInput.addEventListener('keypress', function(e) {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    btnSearch.click();
-  }
-});
-
-console.log('Application initialized successfully!');
-          `,
-        }}
-      />
     </>
+  );
+}
+
+function AuthModal({ mode, onClose, onLogin, onRegister, loading }) {
+  const [isLogin, setIsLogin] = useState(mode === 'login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isLogin) {
+      onLogin(username, password);
+    } else {
+      onRegister(username, password);
+    }
+  };
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    setUsername('');
+    setPassword('');
+  };
+
+  return (
+    <div className="auth-modal-overlay" onClick={onClose}>
+      <div className="auth-modal" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+        <button className="auth-close-btn" onClick={onClose}>×</button>
+        
+        <div className="auth-modal-header">
+          <div className="auth-modal-title">
+            {isLogin ? '🔑 Kirish' : '📝 Ro\'yxatdan o\'tish'}
+          </div>
+          <div className="auth-modal-subtitle">
+            {isLogin ? 'Hisobingizga kiring' : 'Yangi hisob yarating'}
+          </div>
+        </div>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="auth-input-group">
+            <label className="auth-label">Username</label>
+            <input
+              type="text"
+              className="auth-input"
+              placeholder="Username kiriting"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <div className="auth-input-group">
+            <label className="auth-label">Parol</label>
+            <input
+              type="password"
+              className="auth-input"
+              placeholder="Parol kiriting"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            className="auth-submit-btn"
+            disabled={loading}
+          >
+            {loading ? '⏳ Kuting...' : (isLogin ? '✅ Kirish' : '✅ Ro\'yxatdan o\'tish')}
+          </button>
+        </form>
+
+        <div className="auth-switch">
+          {isLogin ? (
+            <>
+              Hisobingiz yo'qmi?{' '}
+              <span className="auth-switch-link" onClick={switchMode}>
+                Ro'yxatdan o'tish
+              </span>
+            </>
+          ) : (
+            <>
+              Hisobingiz bormi?{' '}
+              <span className="auth-switch-link" onClick={switchMode}>
+                Kirish
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

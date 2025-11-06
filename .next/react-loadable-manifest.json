@@ -14,11 +14,5 @@
   "..\\node_modules\\@supabase\\storage-js\\dist\\module\\lib\\helpers.js -> @supabase/node-fetch": {
     "id": "..\\node_modules\\@supabase\\storage-js\\dist\\module\\lib\\helpers.js -> @supabase/node-fetch",
     "files": []
-  },
-  "reels.js -> @supabase/supabase-js": {
-    "id": "reels.js -> @supabase/supabase-js",
-    "files": [
-      "static/chunks/node_modules_supabase_supabase-js_dist_module_index_js.js"
-    ]
   }
 }
