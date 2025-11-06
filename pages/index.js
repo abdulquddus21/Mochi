@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Heart, LogOut, Lock, Loader, Eye } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://itxndrvoolbvzdseuljx.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eG5kcnZvb2xidnpkc2V1bGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzUyNjYsImV4cCI6MjA3MzcxMTI2Nn0.4x264DWr3QVjgPQYqf73QdAypfhKXvuVxw3LW9QYyGM';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+const LOGO_URL = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 60%22%3E%3Ctext x=%2220%22 y=%2245%22 font-size=%2232%22 font-weight=%22bold%22 fill=%22%233b82f6%22%3EAnime%3C/text%3E%3Ctext x=%2220%22 y=%2258%22 font-size=%2214%22 fill=%22rgba(255,255,255,0.6)%22%3EBox%3C/text%3E%3C/svg%3E';
 
 export default function Home() {
   const [modal, setModal] = useState({ show: false, type: '', message: '', onConfirm: null });
@@ -15,6 +18,8 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [favorites, setFavorites] = useState([]);
+  const [views, setViews] = useState({});
 
   const showModal = (type, message, onConfirm = null) => {
     setModal({ show: true, type, message, onConfirm });
@@ -34,8 +39,8 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
-    loadData();
     checkCurrentUser();
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -48,9 +53,21 @@ export default function Home() {
   }, [carouselData]);
 
   const checkCurrentUser = () => {
-    const user = localStorage.getItem('anime_user');
-    if (user) {
-      setCurrentUser(JSON.parse(user));
+    try {
+      const user = localStorage.getItem('anime_user');
+      if (user) {
+        setCurrentUser(JSON.parse(user));
+        const favs = localStorage.getItem('anime_favorites');
+        if (favs) {
+          setFavorites(JSON.parse(favs));
+        }
+        const v = localStorage.getItem('anime_views');
+        if (v) {
+          setViews(JSON.parse(v));
+        }
+      }
+    } catch (error) {
+      console.error('User check error:', error);
     }
   };
 
@@ -70,7 +87,8 @@ export default function Home() {
       setCarouselData(carouselItems || []);
       setAnimeCards(cards || []);
     } catch (error) {
-      console.error('Ma\'lumotlarni yuklashda xato:', error);
+      console.error('Xato:', error);
+      showModal('error', 'Ma\'lumotlarni yuklashda xato yuz berdi');
     }
     setLoading(false);
   };
@@ -151,8 +169,28 @@ export default function Home() {
 
   const handleLogout = () => {
     localStorage.removeItem('anime_user');
+    localStorage.removeItem('anime_favorites');
+    localStorage.removeItem('anime_views');
     setCurrentUser(null);
+    setFavorites([]);
+    setViews({});
     showModal('success', 'Tizimdan chiqdingiz!');
+  };
+
+  const toggleFavorite = (animeId) => {
+    const newFavorites = favorites.includes(animeId)
+      ? favorites.filter(id => id !== animeId)
+      : [...favorites, animeId];
+    
+    setFavorites(newFavorites);
+    localStorage.setItem('anime_favorites', JSON.stringify(newFavorites));
+  };
+
+  const addView = (animeId) => {
+    const newViews = { ...views };
+    newViews[animeId] = (newViews[animeId] || 0) + 1;
+    setViews(newViews);
+    localStorage.setItem('anime_views', JSON.stringify(newViews));
   };
 
   const goToSlide = (index) => {
@@ -199,44 +237,60 @@ export default function Home() {
 
         /* HEADER */
         .site-header {
-          position: absolute;
+          position: sticky;
           top: 0;
           left: 0;
           right: 0;
           z-index: 100;
-          padding: 20px;
+          padding: 15px 20px;
           display: flex;
-          justify-content: flex-end;
+          justify-content: space-between;
+          align-items: center;
+          gap: 15px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+              background-color: rgba(17, 17, 17, 0.5);
+    backdrop-filter: blur(1rem);
+        }
+
+        .header-logo {
+          height: 40px;
+          width: auto;
+        }
+
+        .header-right {
+          display: flex;
           align-items: center;
           gap: 15px;
         }
 
         .login-btn {
-          background: rgba(255,255,255,0.1);
-          border: 1px solid rgba(255,255,255,0.2);
-          color: #fff;
+          background: rgba(59, 130, 246, 0.2);
+          border: 1px solid rgba(59, 130, 246, 0.5);
+          color: #3b82f6;
           padding: 10px 20px;
           border-radius: 8px;
           cursor: pointer;
           font-size: 14px;
           font-weight: 600;
           transition: all 0.3s;
-          backdrop-filter: blur(10px);
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
         .login-btn:hover {
-          background: rgba(255,255,255,0.2);
+          background: rgba(59, 130, 246, 0.3);
+          transform: translateY(-2px);
         }
 
         .user-info {
           display: flex;
           align-items: center;
-          gap: 10px;
-          background: rgba(255,255,255,0.1);
+          gap: 15px;
+          background: rgba(255, 255, 255, 0.05);
           padding: 8px 15px;
           border-radius: 8px;
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255,255,255,0.2);
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .user-name {
@@ -247,15 +301,39 @@ export default function Home() {
         .logout-btn {
           background: transparent;
           border: none;
-          color: rgba(255,255,255,0.7);
+          color: rgba(255, 255, 255, 0.6);
           cursor: pointer;
           font-size: 14px;
           padding: 0;
-          transition: color 0.3s;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
         .logout-btn:hover {
+          color: #ef4444;
+        }
+
+        .admin-button {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          border: none;
           color: #fff;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .admin-button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
         }
 
         /* CAROUSEL STYLES */
@@ -300,7 +378,7 @@ export default function Home() {
           bottom: 0;
           left: 0;
           right: 0;
-          background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%);
+          background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
           padding: 40px 20px 20px;
           z-index: 2;
         }
@@ -315,7 +393,7 @@ export default function Home() {
           font-size: 32px;
           font-weight: 700;
           margin-bottom: 10px;
-          text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
         }
 
         .carousel-meta {
@@ -324,7 +402,7 @@ export default function Home() {
           gap: 20px;
           margin-bottom: 10px;
           font-size: 14px;
-          color: rgba(255,255,255,0.8);
+          color: rgba(255, 255, 255, 0.8);
         }
 
         .carousel-meta-item {
@@ -341,11 +419,12 @@ export default function Home() {
         }
 
         .genre-badge {
-          background: rgba(255,255,255,0.15);
+          background: rgba(59, 130, 246, 0.3);
           padding: 4px 12px;
           border-radius: 20px;
           font-size: 12px;
           font-weight: 500;
+          border: 1px solid rgba(59, 130, 246, 0.5);
         }
 
         .carousel-dots {
@@ -362,7 +441,7 @@ export default function Home() {
           width: 10px;
           height: 10px;
           border-radius: 50%;
-          background: rgba(255,255,255,0.3);
+          background: rgba(255, 255, 255, 0.3);
           cursor: pointer;
           transition: all 0.3s;
         }
@@ -378,7 +457,7 @@ export default function Home() {
           align-items: center;
           justify-content: center;
           height: 100%;
-          color: rgba(255,255,255,0.5);
+          color: rgba(255, 255, 255, 0.5);
           font-size: 18px;
         }
 
@@ -407,27 +486,6 @@ export default function Home() {
           gap: 12px;
         }
 
-        .admin-button {
-          background: linear-gradient(135deg, #3b82f6, #2563eb);
-          border: none;
-          color: #fff;
-          padding: 10px 20px;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 600;
-          transition: all 0.3s;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
-        }
-
-        .admin-button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-        }
-
         .cards-grid {
           display: grid;
           grid-template-columns: repeat(5, 1fr);
@@ -443,29 +501,73 @@ export default function Home() {
           overflow: hidden;
         }
 
-        .anime-card:hover {
-          transform: translateY(-8px);
-          border-color: rgba(255,255,255,0.2);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-        }
+      
 
         .card-image-wrapper {
           width: 100%;
           aspect-ratio: 2/3;
           position: relative;
           overflow: hidden;
-          border-radius:20px;
+          border-radius: 20px;
         }
 
         .card-image {
           width: 100%;
-          height: 100%;
+          height: 95%;
           object-fit: cover;
           transition: transform 0.3s;
+          border-radius:20px;
         }
 
         .anime-card:hover .card-image {
           transform: scale(1.05);
+        }
+
+        .card-header {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px;
+          background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
+          z-index: 3;
+        }
+
+        .card-views {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(0, 0, 0, 0.5);
+          padding: 6px 10px;
+          border-radius: 10px;
+          font-size: 12px;
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .card-like-btn {
+          background: rgba(0, 0, 0, 0.5);
+          border: none;
+          color: rgba(255, 255, 255, 0.8);
+          cursor: pointer;
+          padding: 6px 10px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s;
+        }
+
+        .card-like-btn:hover {
+          background: rgba(239, 68, 68, 0.8);
+          color: #fff;
+        }
+
+        .card-like-btn.liked {
+          background: rgba(239, 68, 68, 0.8);
+          color: #ff0000;
         }
 
         .card-overlay {
@@ -474,13 +576,14 @@ export default function Home() {
           left: 0;
           right: 0;
           bottom: 0;
-          background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 50%);
+          background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 50%);
           opacity: 0;
           transition: opacity 0.3s;
           display: flex;
           flex-direction: column;
           justify-content: flex-end;
           padding: 15px;
+          z-index: 2;
         }
 
         .anime-card:hover .card-overlay {
@@ -508,13 +611,14 @@ export default function Home() {
         }
 
         .card-episodes {
-          color: rgba(255,255,255,0.8);
+          color: rgba(255, 255, 255, 0.8);
         }
 
         .card-genres-overlay {
           display: flex;
           flex-wrap: wrap;
           gap: 4px;
+          display:none;
         }
 
         .genre-tag-small {
@@ -526,26 +630,16 @@ export default function Home() {
         }
 
         .card-content {
-          padding: 15px;
+          padding: 0px 15px;
         }
 
         .card-title {
           font-size: 16px;
           font-weight: 600;
           color: #fff;
-          margin-bottom: 8px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-        }
-
-        .card-info {
-          font-size: 13px;
-          color: rgba(255,255,255,0.6);
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          display:none;
         }
 
         /* AUTH MODAL */
@@ -555,7 +649,7 @@ export default function Home() {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0,0,0,0.9);
+          background: rgba(0, 0, 0, 0.9);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -569,7 +663,8 @@ export default function Home() {
           padding: 40px;
           max-width: 400px;
           width: 90%;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          position: relative;
         }
 
         .auth-modal-header {
@@ -585,7 +680,7 @@ export default function Home() {
 
         .auth-modal-subtitle {
           font-size: 14px;
-          color: rgba(255,255,255,0.6);
+          color: rgba(255, 255, 255, 0.6);
         }
 
         .auth-form {
@@ -603,14 +698,14 @@ export default function Home() {
         .auth-label {
           font-size: 14px;
           font-weight: 600;
-          color: rgba(255,255,255,0.8);
+          color: rgba(255, 255, 255, 0.8);
         }
 
         .auth-input {
           width: 100%;
           padding: 12px 16px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 8px;
           color: #fff;
           font-size: 14px;
@@ -620,7 +715,7 @@ export default function Home() {
         .auth-input:focus {
           outline: none;
           border-color: #3b82f6;
-          background: rgba(255,255,255,0.08);
+          background: rgba(255, 255, 255, 0.08);
         }
 
         .auth-submit-btn {
@@ -635,6 +730,10 @@ export default function Home() {
           cursor: pointer;
           transition: all 0.3s;
           margin-top: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
         }
 
         .auth-submit-btn:hover {
@@ -651,7 +750,7 @@ export default function Home() {
           text-align: center;
           margin-top: 20px;
           font-size: 14px;
-          color: rgba(255,255,255,0.6);
+          color: rgba(255, 255, 255, 0.6);
         }
 
         .auth-switch-link {
@@ -669,9 +768,9 @@ export default function Home() {
           position: absolute;
           top: 15px;
           right: 15px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          color: rgba(255,255,255,0.6);
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.6);
           width: 32px;
           height: 32px;
           border-radius: 8px;
@@ -684,7 +783,7 @@ export default function Home() {
         }
 
         .auth-close-btn:hover {
-          background: rgba(255,255,255,0.1);
+          background: rgba(255, 255, 255, 0.1);
           color: #fff;
         }
 
@@ -695,7 +794,7 @@ export default function Home() {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0,0,0,0.8);
+          background: rgba(0, 0, 0, 0.8);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -708,7 +807,7 @@ export default function Home() {
           padding: 30px;
           max-width: 400px;
           width: 90%;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .modal-header {
@@ -725,6 +824,7 @@ export default function Home() {
           display: flex;
           align-items: center;
           justify-content: center;
+          font-size: 20px;
         }
 
         .modal-icon.success {
@@ -741,7 +841,7 @@ export default function Home() {
         }
 
         .modal-message {
-          color: rgba(255,255,255,0.8);
+          color: rgba(255, 255, 255, 0.8);
           line-height: 1.5;
           margin-bottom: 20px;
         }
@@ -767,8 +867,35 @@ export default function Home() {
         }
 
         .modal-btn.secondary {
-          background: rgba(255,255,255,0.1);
-          color: rgba(255,255,255,0.8);
+          background: rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .loader-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 400px;
+        }
+
+        .empty-state {
+          grid-column: 1 / -1;
+          text-align: center;
+          padding: 60px 20px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
         }
 
         /* RESPONSIVE */
@@ -820,65 +947,58 @@ export default function Home() {
           }
 
           .carousel-content {
-padding: 25px 10px;          }
-        }
+            padding: 25px 10px;
+          }
 
-        .loading-spinner {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 40px;
-          color: rgba(255,255,255,0.5);
-          grid-column: 1 / -1;
-        }
+          .site-header {
+            flex-wrap: wrap;
+          }
 
-        .empty-state {
-          grid-column: 1 / -1;
-          text-align: center;
-          padding: 60px 20px;
-          color: rgba(255,255,255,0.5);
-        }
-
-        .empty-state i {
-          font-size: 48px;
-          margin-bottom: 15px;
-          opacity: 0.3;
+          .header-logo {
+            height: 32px;
+          }
         }
       `}</style>
 
       <div className="container">
         {/* Header */}
         <div className="site-header">
-          {currentUser ? (
-            <>
-              <div className="user-info">
-                <span className="user-name">👤 {currentUser.username}</span>
-                <button className="logout-btn" onClick={handleLogout}>
-                  Chiqish
-                </button>
-              </div>
-              {isAdmin && (
-                <button className="admin-button" onClick={goToAdmin}>
-                  🔒 Admin Panel
-                </button>
-              )}
-            </>
-          ) : (
-            <button className="login-btn" onClick={() => showAuthModal('login')}>
-              🔑 Login
-            </button>
-          )}
+          <img src={LOGO_URL} alt="AnimeBox" className="header-logo" />
+          
+          <div className="header-right">
+            {currentUser ? (
+              <>
+                <div className="user-info">
+                  <span className="user-name">{currentUser.username}</span>
+                  <button className="logout-btn" onClick={handleLogout}>
+                    <LogOut size={16} />
+                  </button>
+                </div>
+                {isAdmin && (
+                  <button className="admin-button" onClick={goToAdmin}>
+                    <Lock size={16} />
+                    Admin Panel
+                  </button>
+                )}
+              </>
+            ) : (
+              <button className="login-btn" onClick={() => showAuthModal('login')}>
+                Kirish
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Carousel */}
         <div className="carousel-wrapper">
           <div className="carousel-container">
-            {carouselData.length === 0 ? (
+            {!loading && carouselData.length === 0 ? (
               <div className="carousel-empty">
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '15px', opacity: 0.3 }}>🎬</div>
-                  <div>Carousel bo'sh</div>
-                </div>
+                <div>Carousel bo'sh</div>
+              </div>
+            ) : loading ? (
+              <div className="loader-container">
+                <Loader className="animate-spin" size={48} color="#3b82f6" />
               </div>
             ) : (
               carouselData.map((item, index) => (
@@ -892,12 +1012,10 @@ padding: 25px 10px;          }
                       <div className="carousel-title">{item.anime_cards.title}</div>
                       <div className="carousel-meta">
                         <div className="carousel-meta-item">
-                          <span>⭐</span>
-                          <span>{item.anime_cards.rating}</span>
+                          <span>⭐ {item.anime_cards.rating}</span>
                         </div>
                         <div className="carousel-meta-item">
-                          <span>📺</span>
-                          <span>{item.anime_cards.episodes} qism</span>
+                          <span>📺 {item.anime_cards.episodes} qism</span>
                         </div>
                       </div>
                       {item.anime_cards.genres && item.anime_cards.genres.length > 0 && (
@@ -929,18 +1047,15 @@ padding: 25px 10px;          }
         {/* Anime Cards */}
         <div className="cards-section">
           <div className="section-header">
-            <h2 className="section-title">
-              🎬 Anime Collection
-            </h2>
+            <h2 className="section-title">🎬 Anime Collection</h2>
           </div>
           <div className="cards-grid">
             {loading ? (
-              <div className="loading-spinner">
-                <div style={{ fontSize: '24px' }}>⏳</div>
+              <div className="loader-container" style={{ gridColumn: '1 / -1' }}>
+                <Loader className="animate-spin" size={48} color="#3b82f6" />
               </div>
             ) : animeCards.length === 0 ? (
               <div className="empty-state">
-                <div style={{ fontSize: '48px', marginBottom: '15px', opacity: 0.3 }}>📭</div>
                 <div>Hali anime qo'shilmagan</div>
               </div>
             ) : (
@@ -948,12 +1063,27 @@ padding: 25px 10px;          }
                 <div key={anime.id} className="anime-card">
                   <div className="card-image-wrapper">
                     <img className="card-image" src={anime.image_url} alt={anime.title} />
-                    <div className="card-overlay">
+                    
+                    {/* Card Header with Views and Like */}
+                    <div className="card-header">
+                      <div className="card-views">
+                        <Eye size={14} />
+                        <span>{views[anime.id] || 0}</span>
+                      </div>
+                      <button 
+                        className={`card-like-btn ${favorites.includes(anime.id) ? 'liked' : ''}`}
+                        onClick={() => toggleFavorite(anime.id)}
+                      >
+                        <Heart size={16} fill={favorites.includes(anime.id) ? 'currentColor' : 'none'} />
+                      </button>
+                    </div>
+                    
+                    {/* Card Overlay */}
+                    <div className="card-overlay" onClick={() => addView(anime.id)}>
                       <div className="card-overlay-info">
                         <div className="card-overlay-meta">
                           <div className="card-rating">
-                            <span>⭐</span>
-                            <span>{anime.rating}</span>
+                            <span>⭐ {anime.rating}</span>
                           </div>
                           <div className="card-episodes">{anime.episodes} qism</div>
                         </div>
@@ -967,12 +1097,10 @@ padding: 25px 10px;          }
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Card Content */}
                   <div className="card-content">
                     <div className="card-title">{anime.title}</div>
-                    <div className="card-info">
-                      <span>⭐ {anime.rating}</span>
-                      <span>📺 {anime.episodes}</span>
-                    </div>
                   </div>
                 </div>
               ))
@@ -1039,12 +1167,12 @@ function AuthModal({ mode, onClose, onLogin, onRegister, loading }) {
 
   return (
     <div className="auth-modal-overlay" onClick={onClose}>
-      <div className="auth-modal" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+      <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
         <button className="auth-close-btn" onClick={onClose}>×</button>
         
         <div className="auth-modal-header">
           <div className="auth-modal-title">
-            {isLogin ? '🔑 Kirish' : '📝 Ro\'yxatdan o\'tish'}
+            {isLogin ? 'Kirish' : 'Ro\'yxatdan o\'tish'}
           </div>
           <div className="auth-modal-subtitle">
             {isLogin ? 'Hisobingizga kiring' : 'Yangi hisob yarating'}
@@ -1083,7 +1211,14 @@ function AuthModal({ mode, onClose, onLogin, onRegister, loading }) {
             className="auth-submit-btn"
             disabled={loading}
           >
-            {loading ? '⏳ Kuting...' : (isLogin ? '✅ Kirish' : '✅ Ro\'yxatdan o\'tish')}
+            {loading ? (
+              <>
+                <Loader size={16} className="animate-spin" />
+                <span>Kuting...</span>
+              </>
+            ) : (
+              isLogin ? 'Kirish' : 'Ro\'yxatdan o\'tish'
+            )}
           </button>
         </form>
 
