@@ -207,6 +207,12 @@ export default function Home() {
     showModal('success', 'Tizimdan chiqdingiz!');
   };
 
+  const goToProfile = () => {
+    if (currentUser) {
+      window.location.href = `/profile/${currentUser.username}`;
+    }
+  };
+
   const toggleFavorite = async (animeId) => {
     if (!currentUser) {
       showModal('error', 'Saralanganlarni saqlash uchun tizimga kiring!');
@@ -387,6 +393,12 @@ export default function Home() {
         .user-name {
           font-weight: 600;
           font-size: 14px;
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+
+        .user-name:hover {
+          color: #3b82f6;
         }
 
         .logout-btn {
@@ -530,8 +542,6 @@ export default function Home() {
           z-index: 3;
         }
 
-     
-
         .carousel-dots {
           position: absolute;
           bottom: 20px;
@@ -575,36 +585,19 @@ export default function Home() {
         }
 
         .admin-button {
-      background: -o-linear-gradient(315deg,#3b82f6,#2563eb);
-    background: none;
-    border: 2px solid;
-    color: #fff;
-    padding: 10px 20px;
-    -webkit-border-radius: 8px;
-    -moz-border-radius: 8px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 15px;
-    font-weight: 600;
-    -webkit-transition: all .3s;
-    -moz-transition: all.3s;
-    -o-transition: all.3s;
-    transition: all .3s;
-    display: -webkit-box;
-    display: -webkit-flex;
-    display: -moz-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -webkit-align-items: center;
-    -moz-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    gap: 10px;
-    -moz-box-shadow: 0 4px 15px rgba(59,130,246,.3);
+          background: none;
+          border: 2px solid;
+          color: #fff;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 15px;
+          font-weight: 600;
+          transition: all .3s;
+          display: flex;
+          align-items: center;
+          gap: 10px;
         }
-
-       
 
         .cards-section {
           max-width: 1400px;
@@ -758,14 +751,14 @@ export default function Home() {
         }
 
         .card-content {
-          padding: 15px;
+          padding: 5px 10px;
         }
 
         .card-title {
           font-size: 16px;
           font-weight: 600;
           color: #fff;
-          white-space: nowrap;
+          white-space: wrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
@@ -1065,6 +1058,7 @@ export default function Home() {
 
           .section-title {
             font-size: 22px;
+            display: none;
           }
 
           .cards-section {
@@ -1094,7 +1088,7 @@ export default function Home() {
           <div className="header-right">
             {currentUser ? (
               <div className="user-info">
-                <span className="user-name">{currentUser.username}</span>
+                <span className="user-name" onClick={goToProfile}>{currentUser.username}</span>
                 <button className="logout-btn" onClick={handleLogout}>
                   <LogOut size={16} />
                 </button>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ArrowLeft, Heart, Eye, Share2, Send, Play, X } from 'lucide-react';
+import { ArrowLeft, Heart, Eye, Share2, Send, Play, X, Copy, Check } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://itxndrvoolbvzdseuljx.supabase.co';
@@ -38,7 +38,9 @@ export default function AnimeDetail() {
   const [currentEpisode, setCurrentEpisode] = useState(1);
   const [videoUrl, setVideoUrl] = useState('');
   const [artplayer, setArtplayer] = useState(null);
-  const [modal, setModal] = useState({ show: false, message: '', type: 'info' });
+  const [shareModal, setShareModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [randomAnimes, setRandomAnimes] = useState([]);
   const playerRef = useRef(null);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function AnimeDetail() {
       loadComments();
       loadEpisodes();
       loadViews();
+      loadRandomAnimes();
     }
   }, [id]);
 
@@ -61,11 +64,21 @@ export default function AnimeDetail() {
     }
   }, [videoUrl, anime]);
 
-  const showModal = (message, type = 'info') => {
-    setModal({ show: true, message, type });
-    setTimeout(() => {
-      setModal({ show: false, message: '', type: 'info' });
-    }, 3000);
+  const loadRandomAnimes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anime_cards')
+        .select('*')
+        .neq('id', id)
+        .limit(100);
+
+      if (!error && data) {
+        const shuffled = data.sort(() => 0.5 - Math.random());
+        setRandomAnimes(shuffled.slice(0, 12));
+      }
+    } catch (error) {
+      console.error('Random anime load error:', error);
+    }
   };
 
   const initializePlayer = () => {
@@ -97,7 +110,7 @@ export default function AnimeDetail() {
       const art = new window.Artplayer({
         container: container,
         url: videoUrl,
-        poster: anime?.image_url || '',
+        poster: '',
         type: 'mp4',
         volume: 0.5,
         isLive: false,
@@ -304,7 +317,6 @@ export default function AnimeDetail() {
 
   const toggleFavorite = async () => {
     if (!anime || !currentUser) {
-      showModal('Saqlash uchun tizimga kiring!', 'warning');
       return;
     }
 
@@ -319,7 +331,6 @@ export default function AnimeDetail() {
         if (!error) {
           setFavorites(favorites.filter(id => id !== anime.id));
           setIsFavorite(false);
-          showModal('Saqlanganlardan o\'chirildi', 'success');
         }
       } else {
         const { error } = await supabase
@@ -329,25 +340,17 @@ export default function AnimeDetail() {
         if (!error) {
           setFavorites([...favorites, anime.id]);
           setIsFavorite(true);
-          showModal('Saqlanganlarga qo\'shildi', 'success');
         }
       }
     } catch (error) {
       console.error('Favorite error:', error);
-      showModal('Xato yuz berdi', 'error');
     }
   };
 
   const handleAddComment = async (e) => {
     e.preventDefault();
     
-    if (!currentUser) {
-      showModal('Komment qoldirish uchun tizimga kiring!', 'warning');
-      return;
-    }
-
-    if (!commentText.trim()) {
-      showModal('Komment bo\'sh bo\'lishi mumkin emas!', 'warning');
+    if (!currentUser || !commentText.trim()) {
       return;
     }
 
@@ -365,25 +368,27 @@ export default function AnimeDetail() {
       if (!error && data) {
         setCommentText('');
         loadComments();
-        showModal('Komment qo\'shildi', 'success');
       }
     } catch (error) {
       console.error('Komment qo\'shishda xato:', error);
-      showModal('Komment qo\'shishda xato', 'error');
     }
   };
 
-  const shareAnime = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: anime.title,
-        text: `${anime.title} ni ko'ring! Reyting: ${anime.rating}`,
-        url: window.location.href,
-      });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      showModal('Link nusxalandi!', 'success');
-    }
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shareToTelegram = () => {
+    const text = `${anime.title} - Reyting: ${anime.rating}`;
+    const url = window.location.href;
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const shareToWhatsApp = () => {
+    const text = `${anime.title} - Reyting: ${anime.rating} - ${window.location.href}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   if (!id) {
@@ -434,10 +439,23 @@ export default function AnimeDetail() {
           }
         }
 
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
         * {
           box-sizing: border-box;
           margin: 0;
           padding: 0;
+          -webkit-tap-highlight-color: transparent;
+        outline: none;
         }
 
         body {
@@ -487,6 +505,7 @@ export default function AnimeDetail() {
         }
 
 
+
         video {
           width: 100%;
           height: 100%;
@@ -497,6 +516,7 @@ export default function AnimeDetail() {
         #artplayer-container {
           width: 100%;
           height: 500px;
+          background: #000;
         }
 
         @media (max-width: 768px) {
@@ -505,101 +525,214 @@ export default function AnimeDetail() {
           }
         }
 
-        .modal-overlay {
+        .share-modal-overlay {
           position: fixed;
           top: 0;
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
+          background: rgba(0, 0, 0, 0.85);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 1000;
-          animation: slideIn 0.3s ease;
+          animation: fadeIn 0.3s ease;
+          backdrop-filter: blur(8px);
         }
 
-        .modal-content {
-          background: linear-gradient(135deg, rgba(30, 30, 40, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
-          padding: 30px;
-          border-radius: 16px;
-          max-width: 400px;
-          border: 1px solid rgba(59, 130, 246, 0.3);
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-          animation: slideIn 0.3s ease;
+        .share-modal {
+          background: linear-gradient(135deg, rgba(30, 30, 40, 0.98) 0%, rgba(20, 20, 30, 0.98) 100%);
+          padding: 25px;
+          border-radius: 24px;
+          max-width: 500px;
+          width: 90%;
+          border: 2px solid rgba(59, 130, 246, 0.3);
+          box-shadow: 0 25px 80px rgba(0, 0, 0, 0.9);
+          animation: slideIn 0.4s ease;
         }
 
-        .modal-header {
+        .share-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 15px;
+          margin-bottom: 30px;
         }
 
-        .modal-icon {
-          width: 40px;
-          height: 40px;
+        .share-title {
+          font-size: 24px;
+          font-weight: 700;
+          color: #fff;
+        }
+
+        .share-close {
+          background: rgba(255, 255, 255, 0.1);
+          border: none;
+          color: #fff;
+          width: 36px;
+          height: 36px;
           border-radius: 50%;
+          cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 20px;
-          margin-right: 10px;
+          transition: all 0.3s;
         }
 
-        .modal-success {
-          background: rgba(34, 197, 94, 0.2);
-          color: #22c55e;
+        .share-close:hover {
+          background: rgba(255, 255, 255, 0.2);
+          transform: rotate(90deg);
         }
 
-        .modal-warning {
-          background: rgba(251, 146, 60, 0.2);
-          color: #fb923c;
+        .share-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+          margin-top: 25px;
         }
 
-        .modal-error {
-          background: rgba(239, 68, 68, 0.2);
-          color: #ef4444;
-        }
-
-        .modal-info {
-          background: rgba(59, 130, 246, 0.2);
-          color: #3b82f6;
-        }
-
-        .modal-message {
-          font-size: 15px;
-          line-height: 1.6;
+        .share-btn {
+          background: rgba(255, 255, 255, 0.05);
+          border: 2px solid rgba(255, 255, 255, 0.2);
           color: #fff;
+          padding: 18px 24px;
+          border-radius: 16px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          font-size: 16px;
+          font-weight: 600;
+          transition: all 0.3s;
+        }
+
+        .share-btn:hover {
+          background: rgba(59, 130, 246, 0.2);
+          border-color: #3b82f6;
+          transform: translateX(5px);
+        }
+
+        .share-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+        }
+
+        .telegram-icon {
+          background: linear-gradient(135deg, #0088cc, #00a0e9);
+        }
+
+        .whatsapp-icon {
+          background: linear-gradient(135deg, #25D366, #128C7E);
+        }
+
+        .copy-icon {
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+
+        .anime-card {
+          background: none;
+          border-radius: 12px;
+          overflow: hidden;
+          cursor: pointer;
+          transition: all 0.3s;
+          border: 2px solid transparent;
+        }
+
+      
+
+        .anime-card img {
+          width: 100%;
+          border-radius: 20px;
+          height: 200px;
+          object-fit: cover;
+        }
+
+        .anime-card-content {
+          padding: 12px;
+        }
+
+        .anime-card-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: #fff;
+          margin-bottom: 5px;
+          white-space: wrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .anime-card-rating {
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        @media (max-width: 768px) {
+          .random-grid-mobile {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
         }
       `}</style>
 
-      {/* Modal */}
-      {modal.show && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <div style={{
-                ...styles.modalIcon,
-                backgroundColor: modal.type === 'success' ? 'rgba(34, 197, 94, 0.2)' : 
-                                modal.type === 'warning' ? 'rgba(251, 146, 60, 0.2)' :
-                                modal.type === 'error' ? 'rgba(239, 68, 68, 0.2)' :
-                                'rgba(59, 130, 246, 0.2)',
-                color: modal.type === 'success' ? '#22c55e' : 
-                      modal.type === 'warning' ? '#fb923c' :
-                      modal.type === 'error' ? '#ef4444' :
-                      '#3b82f6'
-              }}>
-                {modal.type === 'success' ? '✓' : modal.type === 'error' ? '✕' : 'ⓘ'}
-              </div>
-              <button
-                onClick={() => setModal({ show: false, message: '', type: 'info' })}
-                style={styles.modalCloseBtn}
-              >
+      {/* Share Modal */}
+      {shareModal && (
+        <div className="share-modal-overlay" onClick={() => setShareModal(false)}>
+          <div className="share-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="share-header">
+              <h2 className="share-title">Ulashish</h2>
+              <button className="share-close" onClick={() => setShareModal(false)}>
                 <X size={20} />
               </button>
             </div>
-            <p style={styles.modalMessage}>{modal.message}</p>
+
+            <div style={{ fontSize: '15px', color: 'rgba(255,255,255,0.7)', marginBottom: '20px' }}>
+              {anime.title}
+            </div>
+
+            <div className="share-buttons">
+              <button className="share-btn" onClick={copyToClipboard}>
+                <div className="share-icon copy-icon">
+                  {copied ? <Check size={24} /> : <Copy size={24} />}
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div>{copied ? 'Nusxalandi!' : 'Link nusxalash'}</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+                    Linkni buferga nusxalash
+                  </div>
+                </div>
+              </button>
+
+              <button className="share-btn" onClick={shareToTelegram}>
+                <div className="share-icon telegram-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.67-.52.36-.99.53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.37-.48 1.02-.73 3.99-1.74 6.65-2.89 7.97-3.45 3.79-1.58 4.58-1.86 5.09-1.87.11 0 .37.03.54.17.14.11.18.26.2.37.02.06.04.21.02.33z"/>
+                  </svg>
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div>Telegram orqali ulashish</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+                    Do'stlaringiz bilan baham ko'ring
+                  </div>
+                </div>
+              </button>
+
+              <button className="share-btn" onClick={shareToWhatsApp}>
+                <div className="share-icon whatsapp-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                  </svg>
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div>WhatsApp orqali ulashish</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+                    Do'stlaringiz bilan baham ko'ring
+                  </div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -637,7 +770,7 @@ export default function AnimeDetail() {
               />
               {isFavorite ? 'Saqlangan' : 'Saqlash'}
             </button>
-            <button style={styles.actionBtn} onClick={shareAnime}>
+            <button style={styles.actionBtn} onClick={() => setShareModal(true)}>
               <Share2 size={20} />
               Ulashish
             </button>
@@ -649,24 +782,43 @@ export default function AnimeDetail() {
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Qismlar</div>
             <div style={styles.statValue}>
-              <i className="fa-solid fa-biohazard" style={{ color: "#63E6BE" }}></i> {anime.episodes || 0}
+              <Play size={18} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+              {anime.episodes || 0}
             </div>
           </div>
           
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Bahosi</div>
             <div style={styles.statValue}>
-              <i className="fa-solid fa-star" style={{ color: "#FFD43B" }}></i> {anime.rating || 'N/A'}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#FFD700" style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }}>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              {anime.rating || 'N/A'}
             </div>
           </div>
           
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Ko'rishlar</div>
             <div style={styles.statValue}>
-              <i className="fa-regular fa-eye"></i> {views || 0}
+              <Eye size={18} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+              {views || 0}
             </div>
           </div>
         </div>
+
+               {/* Genres */}
+        {anime.genres && anime.genres.length > 0 && (
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>Janrlar</h3>
+            <div style={styles.genresContainer}>
+              {anime.genres.map((genre, idx) => (
+                <span key={idx} style={styles.genreTag}>
+                  {genre}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Video Player Section */}
         {episodes.length > 0 && videoUrl ? (
@@ -685,7 +837,6 @@ export default function AnimeDetail() {
                   <video
                     key={videoUrl}
                     controls
-                    poster={anime.image_url}
                     style={{ width: '100%', height: '500px', background: '#000' }}
                   >
                     <source src={videoUrl} type="video/mp4" />
@@ -729,8 +880,8 @@ export default function AnimeDetail() {
           </div>
         ) : null}
 
-        {/* Description */}
-        {anime.description && (
+         {/* Description */}
+         {anime.description && (
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Tavsif</h3>
             <p style={{
@@ -751,19 +902,33 @@ export default function AnimeDetail() {
           </div>
         )}
 
-        {/* Genres */}
-        {anime.genres && anime.genres.length > 0 && (
+        {/* Random Animes Section */}
+        {randomAnimes.length > 0 && (
           <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>Janrlar</h3>
-            <div style={styles.genresContainer}>
-              {anime.genres.map((genre, idx) => (
-                <span key={idx} style={styles.genreTag}>
-                  {genre}
-                </span>
+            <h3 style={styles.sectionTitle}>Boshqa animelar</h3>
+            <div style={styles.randomGrid} className="random-grid-mobile">
+              {randomAnimes.map((randomAnime) => (
+                <div
+                  key={randomAnime.id}
+                  className="anime-card"
+                  onClick={() => router.push(`/anime/${randomAnime.id}`)}
+                >
+                  <img src={randomAnime.image_url} alt={randomAnime.title} />
+                  <div className="anime-card-content">
+                    <div className="anime-card-title">{randomAnime.title}</div>
+                    <div className="anime-card-rating">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="#FFD700" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }}>
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                      {randomAnime.rating || 'N/A'}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         )}
+
 
         {/* Comments Section */}
         <div style={styles.section}>
@@ -827,7 +992,7 @@ const styles = {
     left: '20px',
     zIndex: 100,
     background: 'none',
-    border: '2px solid rgba(255,q 255, 255, 0.3)',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
     color: '#fff',
     padding: '10px 16px',
     borderRadius: '12px',
@@ -899,13 +1064,13 @@ const styles = {
   statsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '15px',
+    gap: '5px',
     marginBottom: '40px',
   },
   statCard: {
     background: 'rgba(255, 255, 255, 0.05)',
     padding: '20px 0px',
-    borderRadius: '12px',
+    borderRadius: '10px',
     textAlign: 'center',
     border: '1px solid rgba(255, 255, 255, 0.1)',
   },
@@ -964,7 +1129,11 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
   },
-
+  randomGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+    gap: '15px',
+  },
   description: {
     fontSize: '15px',
     lineHeight: '1.7',
@@ -973,14 +1142,14 @@ const styles = {
   },
   toggleBtn: {
     background: 'none',
-    color: '#3b82f6',
-    border: '2px solid #3b82f6',
-    padding: '8px 16px',
-    borderRadius: '8px',
+    color: 'wheat',
+    border: '2px solid',
+    padding: '4px 8px',
+    borderRadius: '6px',
     cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: '600',
-    transition: 'all 0.3s',
+    fontSize: '9px',
+    fontWeight: 600,
+    transition: '0.3s'
   },
   genresContainer: {
     display: 'flex',
@@ -1117,57 +1286,5 @@ const styles = {
     background: '#000000',
     fontSize: '18px',
     color: 'rgba(255, 255, 255, 0.5)',
-  },
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'rgba(0, 0, 0, 0.7)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-  },
-  modalContent: {
-    background: 'linear-gradient(135deg, rgba(30, 30, 40, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%)',
-    padding: '30px',
-    borderRadius: '16px',
-    maxWidth: '400px',
-    border: '1px solid rgba(59, 130, 246, 0.3)',
-    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)',
-  },
-  modalHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '15px',
-  },
-  modalIcon: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '20px',
-    marginRight: '10px',
-  },
-  modalCloseBtn: {
-    background: 'none',
-    border: 'none',
-    color: 'rgba(255, 255, 255, 0.6)',
-    cursor: 'pointer',
-    padding: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'color 0.3s',
-  },
-  modalMessage: {
-    fontSize: '15px',
-    lineHeight: '1.6',
-    color: '#fff',
   },
 };
