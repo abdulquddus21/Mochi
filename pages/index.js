@@ -55,11 +55,26 @@ export default function Home() {
     }
   }, [carouselData]);
 
-  // Uchinchi useEffect - Adsterra script
+  // Uchinchi useEffect - Adsterra banner script (bottom)
   useEffect(() => {
     const script = document.createElement('script');
     script.src = '//pl28049290.effectivegatecpm.com/b1/fa/d0/b1fad09ba6faef1a0871f0c8f7385407.js';
     script.async = true;
+    document.body.appendChild(script);
+    
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, []);
+
+  // To'rtinchi useEffect - Adsterra native banner script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = '//pl28049626.effectivegatecpm.com/ceb154996d37408eb3007a0a9cea06aa/invoke.js';
+    script.async = true;
+    script.setAttribute('data-cfasync', 'false');
     document.body.appendChild(script);
     
     return () => {
