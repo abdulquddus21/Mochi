@@ -42,9 +42,10 @@ export default function AnimeDetail() {
   const [copied, setCopied] = useState(false);
   const [randomAnimes, setRandomAnimes] = useState([]);
   const [showPrerollAd, setShowPrerollAd] = useState(false);
-  const [adCountdown, setAdCountdown] = useState(3);
+  const [adCountdown, setAdCountdown] = useState(5);
   const playerRef = useRef(null);
   const prerollAdRef = useRef(null);
+  const nativeBannerRef = useRef(null);
 
   useEffect(() => {
     checkCurrentUser();
@@ -79,7 +80,7 @@ export default function AnimeDetail() {
   }, [showPrerollAd, adCountdown]);
 
   useEffect(() => {
-    if (showPrerollAd && prerollAdRef.current && !prerollAdRef.current.hasChildNodes()) {
+    if (showPrerollAd && prerollAdRef.current && !prerollAdRef.current.querySelector('script')) {
       const script = document.createElement('script');
       script.type = 'text/javascript';
       script.innerHTML = `
@@ -100,9 +101,23 @@ export default function AnimeDetail() {
     }
   }, [showPrerollAd]);
 
+  useEffect(() => {
+    if (nativeBannerRef.current && !nativeBannerRef.current.querySelector('script')) {
+      const script = document.createElement('script');
+      script.async = true;
+      script.setAttribute('data-cfasync', 'false');
+      script.src = '//pl28049626.effectivegatecpm.com/ceb154996d37408eb3007a0a9cea06aa/invoke.js';
+      nativeBannerRef.current.appendChild(script);
+
+      const adContainer = document.createElement('div');
+      adContainer.id = 'container-ceb154996d37408eb3007a0a9cea06aa';
+      nativeBannerRef.current.appendChild(adContainer);
+    }
+  }, [episodes]);
+
   const handleSkipAd = () => {
     setShowPrerollAd(false);
-    setAdCountdown(3);
+    setAdCountdown(5);
   };
 
   const loadRandomAnimes = async () => {
@@ -167,7 +182,7 @@ export default function AnimeDetail() {
         playbackRate: true,
         aspectRatio: true,
         fullscreen: true,
-        fullscreenWeb: false,
+        fullscreenWeb: true,
         subtitleOffset: true,
         miniProgressBar: true,
         mutex: true,
@@ -187,6 +202,17 @@ export default function AnimeDetail() {
 
       art.on('ready', () => {
         console.log('✅ Player ready');
+      });
+
+      art.on('fullscreen', (state) => {
+        console.log('Fullscreen state:', state);
+        if (state) {
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(err => {
+              console.log('Orientation lock error:', err);
+            });
+          }
+        }
       });
 
       art.on('error', (error, instance) => {
@@ -345,7 +371,7 @@ export default function AnimeDetail() {
       console.log('🔄 Switching to:', streamUrl);
       setVideoUrl(streamUrl);
       setShowPrerollAd(true);
-      setAdCountdown(3);
+      setAdCountdown(5);
       
       if (playerRef.current) {
         try {
@@ -560,9 +586,48 @@ export default function AnimeDetail() {
           background: #000;
         }
 
+        .art-video-player video {
+          object-fit: contain !important;
+        }
+
+        .artplayer-fullscreen video,
+        .artplayer-fullscreen-web video {
+          object-fit: contain !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+
         @media (max-width: 768px) {
           #artplayer-container {
             height: 200px;
+          }
+          
+          .artplayer-fullscreen,
+          .artplayer-fullscreen-web {
+            width: 100vw !important;
+            height: 100vh !important;
+          }
+          
+          .artplayer-fullscreen video,
+          .artplayer-fullscreen-web video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+          }
+        }
+
+        @media screen and (orientation: landscape) and (max-width: 926px) {
+          .artplayer-fullscreen,
+          .artplayer-fullscreen-web {
+            width: 100vw !important;
+            height: 100vh !important;
+          }
+          
+          .artplayer-fullscreen video,
+          .artplayer-fullscreen-web video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
           }
         }
 
@@ -715,7 +780,7 @@ export default function AnimeDetail() {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.95);
+          background: rgba(0, 0, 0, 0.98);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -729,6 +794,8 @@ export default function AnimeDetail() {
           flex-direction: column;
           align-items: center;
           gap: 20px;
+          width: 90%;
+          max-width: 600px;
         }
 
         .preroll-ad-content {
@@ -736,24 +803,44 @@ export default function AnimeDetail() {
           padding: 20px;
           border-radius: 16px;
           border: 2px solid rgba(59, 130, 246, 0.3);
+          width: 100%;
+          min-height: 280px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .preroll-skip-info {
           color: rgba(255, 255, 255, 0.8);
-          font-size: 14px;
+          font-size: 16px;
           text-align: center;
           margin-top: 15px;
+          font-weight: 500;
         }
 
         .preroll-countdown {
-          font-size: 18px;
+          font-size: 24px;
           font-weight: 700;
           color: #3b82f6;
+          display: inline-block;
+          margin: 0 5px;
         }
 
         @media (max-width: 768px) {
           .random-grid-mobile {
             grid-template-columns: repeat(2, 1fr) !important;
+          }
+
+          .preroll-ad-content {
+            min-height: 250px;
+          }
+
+          .preroll-skip-info {
+            font-size: 14px;
+          }
+
+          .preroll-countdown {
+            font-size: 20px;
           }
         }
       `}</style>
@@ -773,19 +860,22 @@ export default function AnimeDetail() {
               ) : (
                 <button
                   style={{
-                    background: '#3b82f6',
+                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                     border: 'none',
                     color: '#fff',
-                    padding: '12px 30px',
+                    padding: '14px 35px',
                     borderRadius: '12px',
                     cursor: 'pointer',
                     fontSize: '16px',
                     fontWeight: '600',
                     transition: 'all 0.3s',
+                    boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
                   }}
                   onClick={handleSkipAd}
+                  onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+                  onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
                 >
-                  Davom etish
+                  Davom etish →
                 </button>
               )}
             </div>
@@ -936,14 +1026,6 @@ export default function AnimeDetail() {
           </div>
         )}
 
-        {/* Native Banner Ad */}
-        <div style={styles.section}>
-          <div style={styles.nativeBannerAd}>
-            <script async="async" data-cfasync="false" src="//pl28049626.effectivegatecpm.com/ceb154996d37408eb3007a0a9cea06aa/invoke.js"></script>
-            <div id="container-ceb154996d37408eb3007a0a9cea06aa"></div>
-          </div>
-        </div>
-
         {/* Video Player Section */}
         {episodes.length > 0 && videoUrl ? (
           <div style={styles.section}>
@@ -951,6 +1033,11 @@ export default function AnimeDetail() {
               <Play size={20} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
               {currentEpisode}-qism
             </h3>
+
+            {/* Native Banner Ad - Above Player */}
+            <div style={styles.nativeBannerAd} ref={nativeBannerRef}>
+              {/* Ad will be injected here */}
+            </div>
             
             {/* Video Player */}
             <div style={styles.videoContainer}>
@@ -1216,14 +1303,15 @@ const styles = {
   },
   nativeBannerAd: {
     background: 'rgba(255, 255, 255, 0.02)',
-    padding: '20px',
+    padding: '15px',
     borderRadius: '12px',
     border: '1px solid rgba(255, 255, 255, 0.05)',
     textAlign: 'center',
-    minHeight: '100px',
+    minHeight: '90px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: '20px',
   },
   videoContainer: {
     marginBottom: '30px',
