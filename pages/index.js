@@ -71,17 +71,19 @@ export default function Home() {
 
   // To'rtinchi useEffect - Adsterra native banner script
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = '//pl28049626.effectivegatecpm.com/ceb154996d37408eb3007a0a9cea06aa/invoke.js';
-    script.async = true;
-    script.setAttribute('data-cfasync', 'false');
-    document.body.appendChild(script);
-    
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
+    const timer = setTimeout(() => {
+      const script = document.createElement('script');
+      script.src = '//pl28049626.effectivegatecpm.com/ceb154996d37408eb3007a0a9cea06aa/invoke.js';
+      script.async = true;
+      script.setAttribute('data-cfasync', 'false');
+      
+      const container = document.getElementById('container-ceb154996d37408eb3007a0a9cea06aa');
+      if (container) {
+        container.appendChild(script);
       }
-    };
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const checkCurrentUser = async () => {
@@ -469,6 +471,16 @@ export default function Home() {
           position: relative;
           overflow: hidden;
           margin-bottom: 30px;
+        }
+
+        .native-banner-container {
+          max-width: 1400px;
+          margin: 0 auto 30px;
+          padding: 0 20px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100px;
         }
 
         .carousel-container {
@@ -1213,6 +1225,11 @@ export default function Home() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Native Banner - Carousel va Anime Cards orasida */}
+        <div className="native-banner-container">
+          <div id="container-ceb154996d37408eb3007a0a9cea06aa"></div>
         </div>
 
         {/* Admin Panel Button */}
