@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Heart, LogOut, Lock, Loader, Eye, Play } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import Head from 'next/head';
 
 const supabaseUrl = 'https://itxndrvoolbvzdseuljx.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eG5kcnZvb2xidnpkc2V1bGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzUyNjYsImV4cCI6MjA3MzcxMTI2Nn0.4x264DWr3QVjgPQYqf73QdAypfhKXvuVxw3LW9QYyGM';
@@ -37,12 +38,14 @@ export default function Home() {
     setAuthModal({ show: false, mode: 'login' });
   };
 
+  // Birinchi useEffect - mount
   useEffect(() => {
     setMounted(true);
     checkCurrentUser();
     loadData();
   }, []);
 
+  // Ikkinchi useEffect - carousel interval
   useEffect(() => {
     if (carouselData.length > 0) {
       const interval = setInterval(() => {
@@ -51,6 +54,20 @@ export default function Home() {
       return () => clearInterval(interval);
     }
   }, [carouselData]);
+
+  // Uchinchi useEffect - Adsterra script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = '//pl28049290.effectivegatecpm.com/b1/fa/d0/b1fad09ba6faef1a0871f0c8f7385407.js';
+    script.async = true;
+    document.body.appendChild(script);
+    
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, []);
 
   const checkCurrentUser = async () => {
     try {
@@ -306,6 +323,19 @@ export default function Home() {
 
   return (
     <>
+     <Head>
+        <title>MochiTv | Eng zo'r tarjima animelar online — yangi, qisqa va sifatli!</title>
+        <meta 
+          name="description" 
+          content="Har kuni yangi qisqa animelar, zavqli hikoyalar va quvnoq lahzalar seni MochiTVda kutmoqda!" 
+        />
+     <link rel="icon" href="/favicon.png" type="image/x-icon" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+      </Head>
+      <div id="ad-container" style={{ position: 'fixed', bottom: 0, width: '100%', zIndex: 9999 }}>
+        {/* Adsterra reklama shu yerda chiqadi */}
+      </div>
       <style jsx global>{`
         * {
           box-sizing: border-box;
