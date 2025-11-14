@@ -57,16 +57,18 @@ export default function Home() {
 
   // Uchinchi useEffect - Adsterra banner script (fixed bottom)
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = '//pl28049290.effectivegatecpm.com/b1/fa/d0/b1fad09ba6faef1a0871f0c8f7385407.js';
-    script.async = true;
-    document.body.appendChild(script);
-    
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
+    const timer = setTimeout(() => {
+      const script = document.createElement('script');
+      script.src = '//pl28049290.effectivegatecpm.com/b1/fa/d0/b1fad09ba6faef1a0871f0c8f7385407.js';
+      script.async = true;
+      
+      const adContainer = document.getElementById('ad-container');
+      if (adContainer) {
+        adContainer.appendChild(script);
       }
-    };
+    }, 1500);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const checkCurrentUser = async () => {
