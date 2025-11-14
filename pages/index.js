@@ -55,7 +55,7 @@ export default function Home() {
     }
   }, [carouselData]);
 
-  // Uchinchi useEffect - Adsterra banner script (bottom)
+  // Uchinchi useEffect - Adsterra banner script (fixed bottom)
   useEffect(() => {
     const script = document.createElement('script');
     script.src = '//pl28049290.effectivegatecpm.com/b1/fa/d0/b1fad09ba6faef1a0871f0c8f7385407.js';
@@ -67,23 +67,6 @@ export default function Home() {
         script.parentNode.removeChild(script);
       }
     };
-  }, []);
-
-  // To'rtinchi useEffect - Adsterra native banner script
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const script = document.createElement('script');
-      script.src = '//pl28049626.effectivegatecpm.com/ceb154996d37408eb3007a0a9cea06aa/invoke.js';
-      script.async = true;
-      script.setAttribute('data-cfasync', 'false');
-      
-      const container = document.getElementById('container-ceb154996d37408eb3007a0a9cea06aa');
-      if (container) {
-        container.appendChild(script);
-      }
-    }, 1000);
-    
-    return () => clearTimeout(timer);
   }, []);
 
   const checkCurrentUser = async () => {
@@ -350,7 +333,7 @@ export default function Home() {
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
       </Head>
-      <div id="ad-container" style={{ position: 'fixed', bottom: 0, width: '100%', zIndex: 9999 }}>
+      <div id="ad-container" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, width: '100%', zIndex: 9999, background: 'rgba(0, 0, 0, 0.95)', borderTop: '1px solid rgba(255, 255, 255, 0.1)', padding: '10px 0' }}>
         {/* Adsterra reklama shu yerda chiqadi */}
       </div>
       <style jsx global>{`
@@ -376,7 +359,7 @@ export default function Home() {
         .container {
           width: 100%;
           min-height: 100vh;
-          padding-bottom: 40px;
+          padding-bottom: 120px;
         }
 
         .site-header {
@@ -471,16 +454,6 @@ export default function Home() {
           position: relative;
           overflow: hidden;
           margin-bottom: 30px;
-        }
-
-        .native-banner-container {
-          max-width: 1400px;
-          margin: 0 auto 30px;
-          padding: 0 20px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 100px;
         }
 
         .carousel-container {
@@ -1225,11 +1198,6 @@ export default function Home() {
               ))}
             </div>
           )}
-        </div>
-
-        {/* Native Banner - Carousel va Anime Cards orasida */}
-        <div className="native-banner-container">
-          <div id="container-ceb154996d37408eb3007a0a9cea06aa"></div>
         </div>
 
         {/* Admin Panel Button */}
