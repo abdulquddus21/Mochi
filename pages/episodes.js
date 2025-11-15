@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Film, Plus, Trash2, X, Upload, ArrowLeft, Loader, Edit, Play } from 'lucide-react';
 
+// Supabase konfiguratsiyasi
 const SUPABASE_URL = 'https://itxndrvoolbvzdseuljx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eG5kcnZvb2xidnpkc2V1bGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzUyNjYsImV4cCI6MjA3MzcxMTI2Nn0.4x264DWr3QVjgPQYqf73QdAypfhKXvuVxw3LW9QYyGM';
-const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB
 
 export default function EpisodesManager() {
   const [modal, setModal] = useState({ show: false, type: '', message: '', title: '', onConfirm: null, data: null });
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [animeInfo, setAnimeInfo] = useState(null);
@@ -77,6 +79,25 @@ export default function EpisodesManager() {
     setLoading(false);
   };
 
+  const uploadToBackend = async (file, episodeNumber) => {
+    const formData = new FormData();
+    formData.append('video', file);
+    formData.append('episode_number', episodeNumber);
+    formData.append('anime_id', animeInfo.id);
+
+    const response = await fetch('/api/upload-video', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Video yuklashda xato');
+    }
+
+    return await response.json();
+  };
+
   const handleAddEpisode = () => {
     showModal('form', '', null, 'Qism qo\'shish');
   };
@@ -126,7 +147,7 @@ export default function EpisodesManager() {
           margin: 0;
           padding: 0;
           -webkit-tap-highlight-color: transparent;
-          outline: none;
+        outline: none;
         }
 
         body {
@@ -646,6 +667,11 @@ export default function EpisodesManager() {
           showModal={showModal}
           loadEpisodes={() => loadEpisodes(animeInfo.id)}
           animeInfo={animeInfo}
+          uploadProgress={uploadProgress}
+          setUploadProgress={setUploadProgress}
+          isUploading={isUploading}
+          setIsUploading={setIsUploading}
+          uploadToBackend={uploadToBackend}
           supabaseUrl={SUPABASE_URL}
           supabaseKey={SUPABASE_ANON_KEY}
         />
@@ -654,7 +680,7 @@ export default function EpisodesManager() {
   );
 }
 
-function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, supabaseUrl, supabaseKey }) {
+function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, uploadProgress, setUploadProgress, isUploading, setIsUploading, uploadToBackend, supabaseUrl, supabaseKey }) {
   const [formData, setFormData] = useState({
     episode_number: '',
     title: '',
@@ -663,9 +689,6 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
     videoFile: null,
     video_url: ''
   });
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState('');
 
   useEffect(() => {
     if (modal.type === 'form' && modal.data) {
@@ -680,138 +703,13 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
     }
   }, [modal.type, modal.data]);
 
-  const calculateSHA1 = async (arrayBuffer) => {
-    const hashBuffer = await crypto.subtle.digest('SHA-1', arrayBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  const uploadVideoChunked = async (file, episodeNumber) => {
-    try {
-      setUploadStatus('🔄 Tayyorlanmoqda...');
-      setUploadProgress(5);
-
-      const fileName = `anime_${animeInfo.id}_episode_${episodeNumber}_${Date.now()}.${file.name.split('.').pop()}`;
-      
-      // 1. Get B2 auth (faqat token olish - kichik so'rov)
-      const authResponse = await fetch('/api/get-b2-upload-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: fileName,
-          contentType: file.type,
-        }),
-      });
-
-      if (!authResponse.ok) {
-        const error = await authResponse.json();
-        throw new Error(error.error || 'Auth olishda xato');
-      }
-
-      const authData = await authResponse.json();
-      setUploadProgress(10);
-
-      // 2. Faylni bo'laklarga bo'lish (20MB - to'g'ridan B2 ga)
-      const CHUNK_SIZE = 20 * 1024 * 1024;
-      const chunks = [];
-      let offset = 0;
-      while (offset < file.size) {
-        chunks.push(file.slice(offset, offset + CHUNK_SIZE));
-        offset += CHUNK_SIZE;
-      }
-
-      const totalChunks = chunks.length;
-      setUploadStatus(`📦 ${totalChunks} ta bo'lak (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-
-      // 3. Har bir chunkni yuklash (to'g'ridan B2 ga)
-      const partSha1Array = [];
-
-      for (let i = 0; i < chunks.length; i++) {
-        setUploadStatus(`📤 Bo'lak ${i + 1}/${totalChunks}...`);
-
-        // Get upload URL for this part (har safar yangi URL)
-        const urlResponse = await fetch('/api/get-part-upload-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileId: authData.fileId,
-            apiUrl: authData.apiUrl,
-            authToken: authData.authToken,
-          }),
-        });
-
-        if (!urlResponse.ok) {
-          const error = await urlResponse.json();
-          throw new Error(error.error || `Part ${i + 1} URL olishda xato`);
-        }
-
-        const urlData = await urlResponse.json();
-
-        // SHA1 hisoblash
-        const arrayBuffer = await chunks[i].arrayBuffer();
-        const hashBuffer = await crypto.subtle.digest('SHA-1', arrayBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const sha1 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-        // Chunkni TO'G'RIDAN B2 GA yuklash (Vercel orqali emas!)
-        const uploadResponse = await fetch(urlData.uploadUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': urlData.authToken,
-            'X-Bz-Part-Number': (i + 1).toString(),
-            'Content-Length': chunks[i].size.toString(),
-            'X-Bz-Content-Sha1': sha1,
-          },
-          body: chunks[i],
-        });
-
-        if (!uploadResponse.ok) {
-          const error = await uploadResponse.text();
-          throw new Error(`Chunk ${i + 1} yuklashda xato: ${error}`);
-        }
-
-        const uploadData = await uploadResponse.json();
-        partSha1Array.push(uploadData.contentSha1);
-
-        const progress = 10 + ((i + 1) / totalChunks) * 70;
-        setUploadProgress(Math.round(progress));
-      }
-
-      // 4. Finish upload
-      setUploadStatus('🏁 Yakunlanmoqda...');
-      setUploadProgress(85);
-
-      const finishResponse = await fetch('/api/finish-b2-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileId: authData.fileId,
-          partSha1Array: partSha1Array,
-          apiUrl: authData.apiUrl,
-          authToken: authData.authToken,
-          downloadUrl: authData.downloadUrl,
-        }),
-      });
-
-      if (!finishResponse.ok) {
-        const error = await finishResponse.json();
-        throw new Error(error.error || 'Yakunlashda xato');
-      }
-
-      const result = await finishResponse.json();
-      setUploadProgress(100);
-      setUploadStatus('✅ Tayyor!');
-
-      return result.downloadUrl;
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw error;
-    }
-  };
-
   const handleVideoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (file.size > 500 * 1024 * 1024) {
+        showModal('error', 'Video hajmi 500MB dan oshmasligi kerak!');
+        return;
+      }
       setFormData({
         ...formData,
         videoFile: file
@@ -834,10 +732,15 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
     setUploadProgress(0);
 
     try {
+      setUploadProgress(10);
+      
       let videoUrl = formData.video_url;
 
       if (formData.videoFile) {
-        videoUrl = await uploadVideoChunked(formData.videoFile, formData.episode_number);
+        setUploadProgress(20);
+        const uploadResult = await uploadToBackend(formData.videoFile, formData.episode_number);
+        videoUrl = uploadResult.downloadUrl;
+        setUploadProgress(80);
       }
 
       const episodeData = {
@@ -877,10 +780,11 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
 
       if (!response.ok) throw new Error('Ma\'lumotlarni saqlashda xato');
 
+      setUploadProgress(100);
+
       setTimeout(() => {
         setIsUploading(false);
         setUploadProgress(0);
-        setUploadStatus('');
         hideModal();
         showModal('success', modal.data ? 'Qism muvaffaqiyatli tahrirlandi!' : 'Qism muvaffaqiyatli qo\'shildi!');
         loadEpisodes();
@@ -890,7 +794,6 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
       console.error('Error:', error);
       setIsUploading(false);
       setUploadProgress(0);
-      setUploadStatus('');
       showModal('error', 'Xato: ' + error.message);
     }
   };
@@ -901,7 +804,7 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
         <div className="modal" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <h2 className="modal-title">{modal.title}</h2>
-            <button className="modal-close" onClick={hideModal} disabled={isUploading}>
+            <button className="modal-close" onClick={hideModal}>
               <X size={20} />
             </button>
           </div>
@@ -959,13 +862,13 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
           <div className="form-group">
             <label className="form-label">
               <Upload size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />
-              {' '}Video yuklash (Cheksiz hajm - 20MB bo'laklarda)
+              {' '}Video yuklash (Max 500MB)
             </label>
             <label className="form-file-upload">
               <input type="file" accept="video/*" onChange={handleVideoChange} disabled={isUploading} />
               <Upload size={48} />
               <div className="file-upload-text">
-                {formData.videoFile ? `${formData.videoFile.name} (${(formData.videoFile.size / 1024 / 1024).toFixed(2)} MB)` : modal.data ? 'Yangi video tanlang (ixtiyoriy)' : 'Video tanlang yoki bu yerga tashlang'}
+                {formData.videoFile ? formData.videoFile.name : modal.data ? 'Yangi video tanlang (ixtiyoriy)' : 'Video tanlang yoki bu yerga tashlang'}
               </div>
             </label>
           </div>
@@ -980,7 +883,10 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
                 <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
               </div>
               <div className="progress-status">
-                {uploadStatus}
+                {uploadProgress < 20 && "Tayyorlanmoqda..."}
+                {uploadProgress >= 20 && uploadProgress < 80 && "Video Backblaze B2 ga yuklanmoqda..."}
+                {uploadProgress >= 80 && uploadProgress < 100 && "Ma'lumotlar saqlanmoqda..."}
+                {uploadProgress === 100 && "Tayyor!"}
               </div>
             </div>
           )}
