@@ -711,8 +711,8 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, su
       const startData = await startResponse.json();
       setUploadProgress(10);
 
-      // 2. Faylni bo'laklarga bo'lish (5MB chunks - Vercel limit)
-      const CHUNK_SIZE = 4 * 1024 * 1024; // 5MB
+      // 2. Faylni bo'laklarga bo'lish (4MB chunks - Vercel hard limit 4.5MB)
+      const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB xavfsiz
       const chunks = [];
       let offset = 0;
       while (offset < file.size) {
