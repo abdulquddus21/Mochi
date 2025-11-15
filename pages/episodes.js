@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Film, Plus, Trash2, X, Upload, ArrowLeft, Loader, Edit, Play } from 'lucide-react';
 
-// Supabase konfiguratsiyasi
 const SUPABASE_URL = 'https://itxndrvoolbvzdseuljx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eG5kcnZvb2xidnpkc2V1bGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzUyNjYsImV4cCI6MjA3MzcxMTI2Nn0.4x264DWr3QVjgPQYqf73QdAypfhKXvuVxw3LW9QYyGM';
+
+const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB
 
 export default function EpisodesManager() {
   const [modal, setModal] = useState({ show: false, type: '', message: '', title: '', onConfirm: null, data: null });
@@ -14,6 +15,7 @@ export default function EpisodesManager() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [animeInfo, setAnimeInfo] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   const showModal = (type, message, onConfirm = null, title = '', data = null) => {
     setModal({ show: true, type, message, onConfirm, title, data });
@@ -79,23 +81,131 @@ export default function EpisodesManager() {
     setLoading(false);
   };
 
-  const uploadToBackend = async (file, episodeNumber) => {
-    const formData = new FormData();
-    formData.append('video', file);
-    formData.append('episode_number', episodeNumber);
-    formData.append('anime_id', animeInfo.id);
+  // 🔒 SHA1 hash hisoblash
+  const calculateSHA1 = async (arrayBuffer) => {
+    const hashBuffer = await crypto.subtle.digest('SHA-1', arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
-    const response = await fetch('/api/upload-video', {
-      method: 'POST',
-      body: formData
-    });
+  // 📦 Chunked upload
+  const uploadVideoChunked = async (file, episodeNumber) => {
+    try {
+      setUploadStatus('Tayyorlanmoqda...');
+      setUploadProgress(5);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Video yuklashda xato');
+      // 1. Upload credentials olish
+      const fileName = `anime_${animeInfo.id}_episode_${episodeNumber}_${Date.now()}.${file.name.split('.').pop()}`;
+      
+      const credResponse = await fetch('/api/get-upload-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: fileName,
+          contentType: file.type,
+        }),
+      });
+
+      if (!credResponse.ok) {
+        throw new Error('Credentials olishda xato');
+      }
+
+      const credentials = await credResponse.json();
+      setUploadProgress(10);
+
+      // 2. Faylni bo'laklarga bo'lish
+      const chunks = [];
+      let offset = 0;
+      while (offset < file.size) {
+        chunks.push(file.slice(offset, offset + CHUNK_SIZE));
+        offset += CHUNK_SIZE;
+      }
+
+      const totalChunks = chunks.length;
+      setUploadStatus(`Fayl ${totalChunks} ta bo'lakga bo'lindi`);
+
+      // 3. Har bir chunkni yuklash
+      const partSha1Array = [];
+      let currentUploadUrl = credentials.uploadUrl;
+      let currentAuthToken = credentials.authToken;
+
+      for (let i = 0; i < chunks.length; i++) {
+        setUploadStatus(`Bo'lak ${i + 1}/${totalChunks} yuklanmoqda...`);
+
+        // Har 2-chunkdan keyin yangi upload URL olish
+        if (i > 0 && i % 2 === 0) {
+          const newUrlResponse = await fetch('/api/get-upload-part-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileId: credentials.fileId,
+              apiUrl: credentials.apiUrl,
+              authToken: credentials.authorizationToken,
+            }),
+          });
+
+          if (newUrlResponse.ok) {
+            const newUrlData = await newUrlResponse.json();
+            currentUploadUrl = newUrlData.uploadUrl;
+            currentAuthToken = newUrlData.authToken;
+          }
+        }
+
+        // Chunk yuklash
+        const arrayBuffer = await chunks[i].arrayBuffer();
+        const sha1 = await calculateSHA1(arrayBuffer);
+
+        const uploadResponse = await fetch(currentUploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': currentAuthToken,
+            'X-Bz-Part-Number': (i + 1).toString(),
+            'Content-Length': chunks[i].size.toString(),
+            'X-Bz-Content-Sha1': sha1,
+          },
+          body: chunks[i],
+        });
+
+        if (!uploadResponse.ok) {
+          const error = await uploadResponse.text();
+          throw new Error(`Chunk ${i + 1} yuklashda xato: ${error}`);
+        }
+
+        const uploadData = await uploadResponse.json();
+        partSha1Array.push(uploadData.contentSha1);
+
+        const progress = 10 + ((i + 1) / totalChunks) * 70;
+        setUploadProgress(Math.round(progress));
+      }
+
+      // 4. Yuklashni yakunlash
+      setUploadStatus('Yuklash yakunlanmoqda...');
+      setUploadProgress(85);
+
+      const finishResponse = await fetch('/api/finish-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId: credentials.fileId,
+          partSha1Array: partSha1Array,
+          apiUrl: credentials.apiUrl,
+          authToken: credentials.authorizationToken,
+        }),
+      });
+
+      if (!finishResponse.ok) {
+        throw new Error('Yuklashni yakunlashda xato');
+      }
+
+      const result = await finishResponse.json();
+      setUploadProgress(100);
+      setUploadStatus('Tayyor!');
+
+      return result.downloadUrl;
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
     }
-
-    return await response.json();
   };
 
   const handleAddEpisode = () => {
@@ -147,7 +257,7 @@ export default function EpisodesManager() {
           margin: 0;
           padding: 0;
           -webkit-tap-highlight-color: transparent;
-        outline: none;
+          outline: none;
         }
 
         body {
@@ -671,7 +781,9 @@ export default function EpisodesManager() {
           setUploadProgress={setUploadProgress}
           isUploading={isUploading}
           setIsUploading={setIsUploading}
-          uploadToBackend={uploadToBackend}
+          uploadVideoChunked={uploadVideoChunked}
+          uploadStatus={uploadStatus}
+          setUploadStatus={setUploadStatus}
           supabaseUrl={SUPABASE_URL}
           supabaseKey={SUPABASE_ANON_KEY}
         />
@@ -680,7 +792,7 @@ export default function EpisodesManager() {
   );
 }
 
-function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, uploadProgress, setUploadProgress, isUploading, setIsUploading, uploadToBackend, supabaseUrl, supabaseKey }) {
+function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, uploadProgress, setUploadProgress, isUploading, setIsUploading, uploadVideoChunked, uploadStatus, setUploadStatus, supabaseUrl, supabaseKey }) {
   const [formData, setFormData] = useState({
     episode_number: '',
     title: '',
@@ -706,10 +818,6 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, up
   const handleVideoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 500 * 1024 * 1024) {
-        showModal('error', 'Video hajmi 500MB dan oshmasligi kerak!');
-        return;
-      }
       setFormData({
         ...formData,
         videoFile: file
@@ -732,15 +840,10 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, up
     setUploadProgress(0);
 
     try {
-      setUploadProgress(10);
-      
       let videoUrl = formData.video_url;
 
       if (formData.videoFile) {
-        setUploadProgress(20);
-        const uploadResult = await uploadToBackend(formData.videoFile, formData.episode_number);
-        videoUrl = uploadResult.downloadUrl;
-        setUploadProgress(80);
+        videoUrl = await uploadVideoChunked(formData.videoFile, formData.episode_number);
       }
 
       const episodeData = {
@@ -780,11 +883,10 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, up
 
       if (!response.ok) throw new Error('Ma\'lumotlarni saqlashda xato');
 
-      setUploadProgress(100);
-
       setTimeout(() => {
         setIsUploading(false);
         setUploadProgress(0);
+        setUploadStatus('');
         hideModal();
         showModal('success', modal.data ? 'Qism muvaffaqiyatli tahrirlandi!' : 'Qism muvaffaqiyatli qo\'shildi!');
         loadEpisodes();
@@ -794,6 +896,7 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, up
       console.error('Error:', error);
       setIsUploading(false);
       setUploadProgress(0);
+      setUploadStatus('');
       showModal('error', 'Xato: ' + error.message);
     }
   };
@@ -862,13 +965,13 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, up
           <div className="form-group">
             <label className="form-label">
               <Upload size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />
-              {' '}Video yuklash (Max 500MB)
+              {' '}Video yuklash (Cheksiz hajm)
             </label>
             <label className="form-file-upload">
               <input type="file" accept="video/*" onChange={handleVideoChange} disabled={isUploading} />
               <Upload size={48} />
               <div className="file-upload-text">
-                {formData.videoFile ? formData.videoFile.name : modal.data ? 'Yangi video tanlang (ixtiyoriy)' : 'Video tanlang yoki bu yerga tashlang'}
+                {formData.videoFile ? `${formData.videoFile.name} (${(formData.videoFile.size / 1024 / 1024).toFixed(2)} MB)` : modal.data ? 'Yangi video tanlang (ixtiyoriy)' : 'Video tanlang yoki bu yerga tashlang'}
               </div>
             </label>
           </div>
@@ -883,10 +986,7 @@ function EpisodeModal({ modal, hideModal, showModal, loadEpisodes, animeInfo, up
                 <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
               </div>
               <div className="progress-status">
-                {uploadProgress < 20 && "Tayyorlanmoqda..."}
-                {uploadProgress >= 20 && uploadProgress < 80 && "Video Backblaze B2 ga yuklanmoqda..."}
-                {uploadProgress >= 80 && uploadProgress < 100 && "Ma'lumotlar saqlanmoqda..."}
-                {uploadProgress === 100 && "Tayyor!"}
+                {uploadStatus}
               </div>
             </div>
           )}
