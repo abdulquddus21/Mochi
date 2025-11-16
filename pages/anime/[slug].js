@@ -483,7 +483,7 @@ export default function AnimeDetail() {
   return (
     <div style={styles.container}>
       <Head>
-        <title>{anime.title}</title>
+        <title>{anime.title} Uzbek Tilida</title>
         <meta 
           name="description" 
           content={anime.genres} 
