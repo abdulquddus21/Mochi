@@ -755,8 +755,6 @@ export default function Home() {
           transition: all 0.3s;
         }
 
-       
-
         .login-btn {
           background: rgba(59, 130, 246, 0.2);
           border: 1px solid rgba(59, 130, 246, 0.5);
@@ -814,6 +812,209 @@ export default function Home() {
         .logout-btn:hover {
           color: #ef4444;
         }
+
+        /* ----- NEW CAROUSEL STYLES START ----- */
+        .carousel-wrapper {
+          width: 100%;
+          height: 600px; /* Increased height for desktop impact */
+          position: relative;
+          overflow: hidden;
+          margin-bottom: 40px;
+          background: #000;
+        }
+
+        .carousel-container {
+          width: 100%;
+          height: 100%;
+          position: relative;
+        }
+
+        .carousel-slide {
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          opacity: 0;
+          transition: opacity 0.8s ease-in-out;
+          display: flex;
+          overflow: hidden;
+        }
+
+        .carousel-slide.active {
+          opacity: 1;
+          z-index: 2;
+        }
+
+        /* Blurry Background Image */
+        .carousel-backdrop {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-size: cover;
+          background-position: center;
+          filter: blur(16px) brightness(0.4);
+          transform: scale(1.1); /* Prevent blur edges */
+          z-index: 1;
+        }
+
+        /* Overlay to darken background further */
+        .carousel-gradient-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.8) 100%);
+          z-index: 2;
+        }
+
+        /* Main Flex Container for Left Content & Right Poster */
+        .carousel-inner-content {
+          position: relative;
+          z-index: 3;
+          width: 100%;
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 0 40px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          height: 100%;
+          gap: 40px;
+        }
+
+        /* Left Side: Text Info */
+        .carousel-text-section {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          max-width: 700px;
+          padding-bottom: 20px;
+        }
+
+        .carousel-title {
+          font-size: 48px;
+          font-weight: 800;
+          margin-bottom: 15px;
+          line-height: 1.1;
+          background: linear-gradient(90deg, #fff, #ccc);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          text-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .carousel-meta {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 20px;
+          font-size: 16px;
+          color: rgba(255, 255, 255, 0.9);
+          font-weight: 500;
+        }
+
+        .carousel-genres {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 25px;
+        }
+
+        .genre-badge {
+          background: rgba(59, 130, 246, 0.2);
+          padding: 6px 14px;
+          border-radius: 50px;
+          font-size: 13px;
+          font-weight: 600;
+          border: 1px solid rgba(59, 130, 246, 0.4);
+          color: #60a5fa;
+          backdrop-filter: blur(5px);
+        }
+
+        .carousel-description {
+          font-size: 16px;
+          line-height: 1.7;
+          color: rgba(255, 255, 255, 0.8);
+          margin-bottom: 30px;
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .carousel-watch-btn {
+          align-self: flex-start;
+          background: #3b82f6;
+          border: none;
+          color: #fff;
+          padding: 12px 28px;
+          border-radius: 12px;
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: 700;
+          transition: all 0.3s;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .carousel-watch-btn:hover {
+          background: #2563eb;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6);
+        }
+
+        /* Right Side: Poster Image */
+        .carousel-poster-section {
+          flex: 0 0 320px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: floatPoster 6s ease-in-out infinite;
+        }
+
+        @keyframes floatPoster {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+
+        .carousel-poster-img {
+          width: 320px;
+          aspect-ratio: 2/3;
+          object-fit: cover;
+          border-radius: 20px;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1);
+        }
+
+        .carousel-dots {
+          position: absolute;
+          bottom: 25px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 10px;
+          z-index: 10;
+        }
+
+        .carousel-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.3);
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+
+        .carousel-dot.active {
+          background: #3b82f6;
+          width: 30px;
+          border-radius: 5px;
+        }
+        /* ----- NEW CAROUSEL STYLES END ----- */
 
         .search-modal-overlay {
           position: fixed;
@@ -987,155 +1188,6 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 5px;
-        }
-
-        .carousel-wrapper {
-          width: 100%;
-          height: 500px;
-          position: relative;
-          overflow: hidden;
-          margin-bottom: 30px;
-        }
-
-        .carousel-container {
-          width: 100%;
-          height: 100%;
-          position: relative;
-        }
-
-        .carousel-slide {
-          width: 100%;
-          height: 100%;
-          position: absolute;
-          opacity: 0;
-          transition: opacity 0.8s ease-in-out;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .carousel-slide.active {
-          opacity: 1;
-        }
-
-        .carousel-slide img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          object-position: center;
-          filter: brightness(0.7);
-        }
-
-        .carousel-overlay {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, transparent 100%);
-          padding: 40px 20px 20px;
-          z-index: 2;
-        }
-
-        .carousel-content {
-          max-width: 1400px;
-          padding: 0 20px;
-          margin-bottom: 50px;
-        }
-
-        .carousel-title {
-          font-size: 35px;
-          font-weight: 700;
-          margin-bottom: 10px;
-          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-        }
-
-        .carousel-meta {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 12px;
-          font-size: 14px;
-          color: rgba(255, 255, 255, 0.8);
-        }
-
-        .carousel-meta-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .carousel-genres {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-
-        .genre-badge {
-          background: rgba(59, 130, 246, 0.3);
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 500;
-          border: 1px solid rgba(59, 130, 246, 0.5);
-        }
-
-        .carousel-description {
-          font-size: 14px;
-          line-height: 1.6;
-          color: rgba(255, 255, 255, 0.85);
-          max-width: 800px;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
-        }
-
-        .carousel-watch-btn {
-          position: absolute;
-          top: 20px;
-          right: 20px;
-          background: none;
-          border: 2px solid;
-          color: #fff;
-          padding: 7px 10px;
-          border-radius: 8px;
-          cursor: pointer;
-          backdrop-filter: blur(1rem);
-          font-size: 12px;
-          font-weight: 700;
-          transition: all 0.3s;
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          z-index: 3;
-        }
-
-        .carousel-dots {
-          position: absolute;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          gap: 10px;
-          z-index: 3;
-        }
-
-        .carousel-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.3);
-          cursor: pointer;
-          transition: all 0.3s;
-        }
-
-        .carousel-dot.active {
-          background: #fff;
-          width: 30px;
-          border-radius: 5px;
         }
 
         .carousel-empty {
@@ -1702,6 +1754,7 @@ export default function Home() {
           padding: 10px 0;
         }
 
+        /* --- MEDIA QUERIES --- */
         @media (max-width: 1200px) {
           .cards-grid {
             grid-template-columns: repeat(4, 1fr);
@@ -1717,13 +1770,85 @@ export default function Home() {
             grid-template-columns: repeat(3, 1fr);
           }
           
+          /* CAROUSEL MOBILE REVERT LOGIC START */
           .carousel-wrapper {
             height: 400px;
           }
+          
+          /* Remove side-by-side flex */
+          .carousel-inner-content {
+            display: block;
+            padding: 0 20px;
+          }
 
+          /* Hide the right poster on mobile */
+          .carousel-poster-section {
+            display: none;
+          }
+
+          /* Revert backdrop to clear image */
+          .carousel-backdrop {
+            filter: none;
+            transform: scale(1);
+            opacity: 1;
+            filter: brightness(0.7); /* Standard dimming for text readability */
+          }
+
+          /* Remove extra gradient overlay on mobile if image is already dimmed */
+          .carousel-gradient-overlay {
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, transparent 100%);
+          }
+
+          /* Revert text section to overlay style */
+          .carousel-text-section {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-width: 100%;
+            padding: 40px 20px 20px;
+            z-index: 4;
+            justify-content: flex-end;
+            height: auto;
+          }
+
+          /* Adjust typography for mobile */
           .carousel-title {
             font-size: 29px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            background: none;
+            -webkit-text-fill-color: #fff;
+            color: #fff;
           }
+          
+          .carousel-description {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-size: 14px;
+            margin-bottom: 15px;
+          }
+
+          .carousel-watch-btn {
+            position: absolute;
+            top: 0px;
+            right: 20px;
+            background: none;
+            border: 2px solid #fff;
+            padding: 7px 10px;
+            font-size: 12px;
+            backdrop-filter: blur(1rem);
+            box-shadow: none;
+            align-self: auto;
+            margin-top: -60px !important;
+          }
+          
+          .carousel-dots {
+             bottom: 15px;
+          }
+          /* CAROUSEL MOBILE REVERT LOGIC END */
 
           .footer-section {
             display: flex;
@@ -1756,6 +1881,7 @@ export default function Home() {
           .carousel-meta {
             font-size: 12px;
             gap: 12px;
+            margin-bottom: 12px;
           }
 
           .section-title {
@@ -1766,19 +1892,25 @@ export default function Home() {
           .cards-section {
             padding: 0 15px;
           }
-
-          .carousel-content {
-            padding: 25px 10px;
-            margin-bottom: 10px;
+          
+          .carousel-genres {
+            gap: 6px;
+            margin-bottom: 12px;
+          }
+          
+          .genre-badge {
+            padding: 4px 10px;
+            font-size: 11px;
+          }
+          
+          .carousel-description{
+            font-size: 12px;
           }
 
           .site-header {
             flex-wrap: wrap;
             padding: 15px 10px;
           }
-            .carousel-description{
-            font-size: 12px;
-            }
 
           .mobile-hide {
             display: none !important;
@@ -1859,7 +1991,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Carousel */}
+        {/* Updated Carousel Structure */}
         <div className="carousel-wrapper">
           <div className="carousel-container">
             {!loading && carouselData.length === 0 ? (
@@ -1876,19 +2008,21 @@ export default function Home() {
                   key={item.id}
                   className={`carousel-slide ${index === currentSlide ? 'active' : ''}`}
                 >
-                  <img src={item.anime_cards.image_url} alt={item.anime_cards.title} />
-                  
-                  <button 
-                    className="carousel-watch-btn"
-                    onClick={() => goToAnime(item.anime_cards)}
-                  >
-                    <Play size={20} fill="currentColor" />
-                    Watch
-                  </button>
+                  {/* Background Layer (Blurry) */}
+                  <div 
+                    className="carousel-backdrop" 
+                    style={{ backgroundImage: `url(${item.anime_cards.image_url})` }}
+                  ></div>
 
-                  <div className="carousel-overlay">
-                    <div className="carousel-content">
+                  {/* Gradient Overlay */}
+                  <div className="carousel-gradient-overlay"></div>
+
+                  {/* Main Content (Split View on Desktop, Overlay on Mobile) */}
+                  <div className="carousel-inner-content">
+                    {/* Left Side: Text */}
+                    <div className="carousel-text-section">
                       <div className="carousel-title">{item.anime_cards.title}</div>
+                      
                       <div className="carousel-meta">
                         <div className="carousel-meta-item">
                           <span>⭐ {item.anime_cards.rating}</span>
@@ -1897,6 +2031,7 @@ export default function Home() {
                           <span>📺 {item.anime_cards.episodes} qism</span>
                         </div>
                       </div>
+
                       {item.anime_cards.genres && item.anime_cards.genres.length > 0 && (
                         <div className="carousel-genres">
                           {item.anime_cards.genres.slice(0, 3).map((genre, idx) => (
@@ -1904,11 +2039,29 @@ export default function Home() {
                           ))}
                         </div>
                       )}
+
                       {item.anime_cards.description && (
                         <div className="carousel-description">
                           {item.anime_cards.description}
                         </div>
                       )}
+
+                      <button 
+                        className="carousel-watch-btn"
+                        onClick={() => goToAnime(item.anime_cards)}
+                      >
+                        <Play size={20} fill="currentColor" />
+                        Tomosha qilish
+                      </button>
+                    </div>
+
+                    {/* Right Side: Poster Image (Hidden on Mobile) */}
+                    <div className="carousel-poster-section">
+                       <img 
+                         src={item.anime_cards.image_url} 
+                         alt={item.anime_cards.title} 
+                         className="carousel-poster-img"
+                       />
                     </div>
                   </div>
                 </div>
@@ -1941,7 +2094,7 @@ export default function Home() {
         {/* Anime Cards */}
         <div className="cards-section">
           <div className="section-header">
-            <h2 className="section-title">🎬 Anime Collection</h2>
+            <h2 className="section-title">🎬 Anime </h2>
           </div>
           <div className="cards-grid">
             {loading ? (
